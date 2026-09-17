@@ -1,0 +1,47 @@
+# Dépendances — volumineux, jamais à lire directement
+vendor/
+node_modules/
+
+# Builds & caches
+public/build/
+bootstrap/cache/
+storage/framework/
+storage/logs/
+storage/debugbar/
+.phpunit.cache/
+.vite/
+
+# Environnement & secrets
+.env
+.env.*
+!.env.example
+
+# Artefacts de tests / couverture
+coverage/
+.pest/
+
+# Verrous de dépendances (volumineux, rarement utiles au contexte)
+composer.lock
+package-lock.json
+pnpm-lock.yaml
+bun.lockb
+
+# Assets binaires
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.pdf
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Git interne
+.git/

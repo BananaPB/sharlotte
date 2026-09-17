@@ -1,0 +1,69 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: ai-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  claude-review:
+    # Ne relance pas sur une PR encore en brouillon
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run Claude Code PR Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          # Utilise un token OAuth lié à ton abonnement Claude (voir le guide
+          # d'installation, étape "Configurer le secret GitHub"). Si tu passes
+          # plus tard sur une clé API, remplace par `anthropic_api_key`.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Le prompt reprend explicitement le rôle "Agent PR Reviewer" décrit
+          # dans le workflow multi-agents, avec un ton pédagogique.
+          prompt: |
+            Tu es l'Agent PR Reviewer de ce projet Laravel 13 / React 19 + Inertia.js.
+            Utilise le fichier CLAUDE.md du repo comme référence de style et de
+            conventions — respecte-le strictement dans ta revue.
+
+            Analyse le diff de cette pull request et :
+
+            1. Vérifie la sécurité : CSRF, injections SQL, N+1, autorisation
+               (Policies/Gates), validation des entrées (FormRequests).
+            2. Vérifie le respect des conventions de nommage et des règles
+               strictes listées dans CLAUDE.md (sections 3 et 4).
+            3. Pour chaque point soulevé, explique le "pourquoi" de manière
+               pédagogique — ce projet est maintenu par un développeur qui
+               apprend Laravel 13 et React 19, donc les remarques doivent être
+               formatrices, pas seulement correctives.
+            4. Laisse des commentaires en ligne sur les points précis du code
+               (via l'outil de commentaire inline), et un résumé global en
+               commentaire de PR listant : les points bloquants, les
+               suggestions, et ce qui est déjà bien fait.
+            5. Ne modifie aucun fichier et n'ouvre aucun commit — cette
+               review est en lecture seule, le contrôle humain du merge
+               reste entier.
+
+            Utilise `gh pr diff` et `gh pr view` pour lire le contexte de la PR,
+            et poste ton résumé avec `gh pr comment`.
+
+          claude_args: >-
+            --allowed-tools
+            "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+
+          track_progress: true
