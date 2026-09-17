@@ -33,4 +33,6 @@ The B2B SaaS is not in scope for this repo. Do not anticipate its needs (pricing
 
 ## Current state
 
+Repository initialized and pushed to GitHub, with the multi-agent Claude Code workflow (`.claude/`), CI (`tests.yml`), and PR review (`ai-pr-review.yml`) in place. No feature work started yet — Phase 1 (ingredient database) is next.
+
 _(to be kept up to date by the Documentation agent as work progresses — which phase is underway, what's done)_
