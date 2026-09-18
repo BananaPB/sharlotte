@@ -19,6 +19,7 @@ When we need to refer generically to "a thing that appears as a line in a recipe
 ### Ingredient
 
 A raw product, bought as-is, **with no recipe**. It directly carries:
+
 - its nutritional information (values per 100g, for example),
 - its declared allergens.
 
@@ -74,12 +75,14 @@ The nutrition and allergens of the strawberry tart = the aggregation of everythi
 ### Units
 
 To stay reliable, the tool always reasons in **mass**. Recipes are a series of lines assigning each component a quantity in **grams**. To keep recipes user-friendly nonetheless, the tool provides two mechanisms:
+
 - **Formats**: the shape/packaging label of a component. Example: slice, box, packet, bottle, piece, etc. This is a list of read-only labels made available to users.
 - **Units**: for a given component, a unit associates a format with a quantity in grams. For example, for the ingredient "ham", a user can create the unit "1 slice = 40g".
 
 ### Unrolling a recipe
 
 When the tool needs to "unroll" a recipe:
+
 1. Replace every unit with a quantity in grams. For example: 2 slices of 40g become 80g.
 2. Replace every preparation with its list of components.
 

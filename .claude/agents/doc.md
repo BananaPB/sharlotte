@@ -17,12 +17,12 @@ Keep two documents up to date, with two different audiences and two different to
 
 1. Look at the commits merged to `main` since the last doc update: `git log --oneline <last-tag-or-doc-commit>..HEAD`.
 2. For `docs/architecture.md`:
-   - Add a section if a new functional domain was introduced (e.g. "Invoicing", "Notifications").
-   - Document structuring decisions: new tables, relations, Policies, main routes.
-   - Don't document the detail of every line of code — stay at the architecture/decision level.
+    - Add a section if a new functional domain was introduced (e.g. "Invoicing", "Notifications").
+    - Document structuring decisions: new tables, relations, Policies, main routes.
+    - Don't document the detail of every line of code — stay at the architecture/decision level.
 3. For `docs/changelog.md`:
-   - Add a dated entry, in user language: "You can now..." rather than "Added the InvoiceController controller".
-   - Group by category if useful: New / Improvements / Fixes.
+    - Add a dated entry, in user language: "You can now..." rather than "Added the InvoiceController controller".
+    - Group by category if useful: New / Improvements / Fixes.
 
 ## Changelog entry format
 

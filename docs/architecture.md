@@ -9,7 +9,7 @@
 - UI: Tailwind CSS + shadcn/ui
 - Tests: Pest PHP (backend), Vitest (frontend)
 
-## Data access: one gatekeeper, three surfaces *(planned)*
+## Data access: one gatekeeper, three surfaces _(planned)_
 
 The database is never talked to directly — not by the web UI, not by the public API, not by a future consumer. Everything goes through the Laravel app: Eloquent models, Policies for authorization, FormRequests for validation (see [`CLAUDE.md`](../CLAUDE.md) section 3). The app then exposes the same underlying data through three separate surfaces:
 
@@ -33,7 +33,7 @@ Dataset export ──────▶│  (scheduled artisan       │
 
 The recursive Product → Preparation → Ingredient calculation (see [`domain-model.md`](domain-model.md)) lives entirely inside the Laravel app and is reachable through both the UI and the API — one implementation, two front doors.
 
-## B2B SaaS boundary *(planned, Phase 4)*
+## B2B SaaS boundary _(planned, Phase 4)_
 
 Per [`roadmap.md`](roadmap.md), the B2B SaaS is a **separate, private repo** with its own database, consuming sharlotte's public API as an HTTP client — not a shared package, not a monorepo, not an embedded copy of the engine.
 

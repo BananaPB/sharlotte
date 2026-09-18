@@ -23,6 +23,7 @@ See [`domain-model.md`](domain-model.md) for the `Product` > `Preparation` > `In
 The **open source / individuals** branch of the broader vision (see [`roadmap.md`](roadmap.md) for the second, B2B leg, which lives in a separate, private repo).
 
 An individual who likes to cook, keeps their own recipes, and wants:
+
 - a clean recipe sheet with automatically calculated nutrition/allergens,
 - to export to Cooklang format,
 - to generate a static blog of their recipes, a recipe book, a printable sheet.
