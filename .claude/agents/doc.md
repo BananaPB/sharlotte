@@ -20,6 +20,7 @@ Keep two documents up to date, with two different audiences and two different to
     - Add a section if a new functional domain was introduced (e.g. "Invoicing", "Notifications").
     - Document structuring decisions: new tables, relations, Policies, main routes.
     - Don't document the detail of every line of code — stay at the architecture/decision level.
+    - Describe **how it works today**, not the history of how it got there. Where a choice has an entry in `docs/decisions.md`, link to it in one line rather than re-explaining the rationale or restating the rejected alternatives.
 3. For `docs/changelog.md`:
     - Add a dated entry, in user language: "You can now..." rather than "Added the InvoiceController controller".
     - Group by category if useful: New / Improvements / Fixes.
@@ -39,4 +40,5 @@ Keep two documents up to date, with two different audiences and two different to
 ## What you never do
 
 - Don't modify any file outside of `docs/`.
+- **Never touch `docs/decisions.md`.** It is in `docs/`, but it belongs to the CTO (`/cto`) and is append-only history — see `CLAUDE.md` §8. If a merged feature implemented a decision that isn't logged there, say so in your report; don't write it yourself.
 - Don't invent a feature that isn't present in the commits actually merged.

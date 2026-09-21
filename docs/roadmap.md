@@ -15,7 +15,7 @@ The B2B SaaS is not in scope for this repo. Do not anticipate its needs (pricing
 
 - Migrate the ~2,000 Excel entries to a real database.
 - `Ingredient` model (nutrition + allergens).
-- API: public read access, user-scoped creation for private entries.
+- No public API yet — see Phase 3. Freezing an API contract before the domain engine (Phase 2) has validated the data model would mean building it against a shape likely to change.
 
 ### Phase 2 — Domain engine
 
@@ -25,6 +25,7 @@ The B2B SaaS is not in scope for this repo. Do not anticipate its needs (pricing
 
 ### Phase 3 — "Individual" app
 
+- Public JSON API: read access to ingredients/preparations/products, rate-limited; user-scoped creation for private entries (moved here from Phase 1 — see the note above).
 - Recipe/product CRUD on top of the domain engine.
 - Export to Cooklang format.
 - Static blog generation, recipe book, printable sheets.

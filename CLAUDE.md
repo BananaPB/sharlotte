@@ -83,7 +83,10 @@ Before any task touching the business domain (ingredients, products, preparation
 
 - `docs/architecture.md`: technical overview, updated by the Documentation agent after each structuring feature merge.
 - `docs/changelog.md`: end-user-facing changelog (no technical jargon), updated on every merge.
+- `docs/decisions.md`: decision log — what was chosen, what was rejected, and what it costs. Maintained by the CTO (`/cto`), never by the Documentation agent. Append-only: an existing entry is never rewritten, a changed decision gets a new entry superseding the old one. It is the counterpart to `architecture.md`, which describes the current state and *is* rewritten.
 
 ## 9. Available sub-agents
 
 See `.claude/agents/`: `dev`, `quality`, `qa`, `doc`. Invoked via the slash commands in `.claude/commands/` (`/feature`, `/audit`, `/test`, `/doc`) or directly by name for one-off needs.
+
+`/cto` is deliberately **not** a sub-agent: it is a posture loaded into the main session, because an advisory conversation needs the context already in the session rather than a cold start. It decides and records in `docs/decisions.md`; it never writes application code.
