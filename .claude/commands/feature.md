@@ -13,7 +13,7 @@ You are orchestrating the start of the multi-agent workflow for a new feature: *
 4. Once the dev agent is done, display a clear summary for the human:
     - List of created/modified files (`git status --short`).
     - Non-trivial technical decisions made by the dev agent.
-    - Explicit suggestion for next steps: run `/audit` then `/test` before opening the PR.
+    - Explicit suggestion for next step: run `/audit`.
 
 ## Important
 

@@ -10,7 +10,7 @@ Invoke the **qa** sub-agent (see `.claude/agents/qa.md`) on the active branch's 
 2. Invoke the `qa` sub-agent with the diff between `main` and the current branch as its scope.
 3. Display the full report: tests added, Pest/Vitest results, and any failure linked to a code bug.
 4. If tests fail because of a code bug (not a poorly written test), clearly summarize the problem and propose re-launching the `dev` agent to fix it, pending user confirmation.
-5. If everything passes, end with: "Tests OK — ready to open the PR (`gh pr create`)."
+5. If everything passes, end with: "Tests OK — run `/cto` to get the exact git add/commit/push/PR sequence for this branch."
 
 ## Important
 
