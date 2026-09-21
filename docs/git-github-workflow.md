@@ -98,10 +98,9 @@ This project's `.claude/` agents exist so you're never guessing which command co
   ... fix anything flagged CRITICAL before continuing ...
   → suggests: /test  (or: fixes needed first)
 
-/test                               QA agent: writes and runs Pest/Vitest coverage for the diff.
-  ... if a test fails on a REAL bug (not a bad test), it hands that back to you to re-run
-      /feature with a fix description — it never patches business logic itself ...
-  → suggests: /cto (to get the exact git sequence)
+  ... if a test fails on a REAL bug (not a bad test), it hands that back to you to re-launch
+      the `dev` agent directly with a fix description (same branch, no new `/feature` call) —
+      it never patches business logic itself ...
 
 /cto                                 Reviews the audit + test reports actually in context and
                                     gives you the real commands, filled in — not a template:
