@@ -25,7 +25,7 @@ Audit the current `git diff` (never the whole repo, except on explicit request) 
     ```bash
     ./vendor/bin/pint
     ./vendor/bin/phpstan analyse
-    npm run lint -- --fix
+    npm run check:fix
     ```
 4. Apply any possible automatic fixes (formatting, imports, auto-fixable ESLint rules).
 5. For any issue that **cannot be auto-fixed** (business logic, a real security flaw), do NOT silently fix it yourself: clearly flag it in your report with the relevant line and a proposed fix, for human validation.

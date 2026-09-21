@@ -83,7 +83,7 @@ Before any task touching the business domain (ingredients, products, preparation
 
 - `docs/architecture.md`: technical overview, updated by the Documentation agent after each structuring feature merge.
 - `docs/changelog.md`: end-user-facing changelog (no technical jargon), updated on every merge.
-- `docs/decisions.md`: decision log — what was chosen, what was rejected, and what it costs. Maintained by the CTO (`/cto`), never by the Documentation agent. Append-only: an existing entry is never rewritten, a changed decision gets a new entry superseding the old one. It is the counterpart to `architecture.md`, which describes the current state and *is* rewritten.
+- `docs/decisions.md`: decision log — what was chosen, what was rejected, and what it costs. Maintained by the CTO (`/cto`), never by the Documentation agent. Append-only: an existing entry is never rewritten, a changed decision gets a new entry superseding the old one. It is the counterpart to `architecture.md`, which describes the current state and _is_ rewritten.
 
 ## 9. Available sub-agents
 
