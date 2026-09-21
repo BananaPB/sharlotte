@@ -27,6 +27,18 @@ Real decisions, deliberately not made yet, each with the event that should bring
 
 _Entries 1–4 were recorded retroactively on 2026-09-21 from [`vision.md`](vision.md), [`roadmap.md`](roadmap.md), and [`architecture.md`](architecture.md). They describe choices already made at repo initialization, not new ones._
 
+## 6. npm, not pnpm
+
+**2026-09-21 · Accepted**
+
+A prior commit pinned pnpm via `devEngines.packageManager` in `package.json` without updating `tests.yml` or `composer.json`'s `setup` script to match — both still call plain `npm`. The mismatch broke `ci` (`EBADDEVENGINES`) across three sessions running before it was traced to this. So: stay on npm, remove the pnpm pin.
+
+**Rejected**: keep pnpm and fix CI/composer.json to match it instead — pnpm's real advantages (a shared content-addressable store, strict dependency isolation, fast installs in a large monorepo) don't apply here. This is one `package.json`, not a workspace (`pnpm-workspace.yaml` lists exactly one package, `.`), and `npm install` finishes in ~9 seconds on this dependency set. `pnpm-workspace.yaml` already carries a `publicHoistPattern` escape hatch for `@inertiajs/core` — pnpm's strict isolation already broke something here once, before a single feature was written. The pnpm pin was never a deliberate choice to begin with; it was incidental to a formatter running once through pnpm.
+
+**Costs**: none identified — npm ships with Node, needs no CI setup step, and nothing here needs pnpm's workspace features. The only real cost was already paid: three sessions of CI confusion tracing a mismatch nobody had decided on.
+
+**Revisit when**: this repo becomes an actual multi-package workspace. Not expected to — the B2B SaaS is a separate repo by design (decision 3), so there's no monorepo in this project's future to plan around.
+
 ## 5. Postgres everywhere — development, production, and tests
 
 **2026-09-21 · Accepted**
