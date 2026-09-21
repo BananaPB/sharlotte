@@ -14,19 +14,19 @@ Audit the current `git diff` (never the whole repo, except on explicit request) 
 
 1. Fetch the current diff: `git diff` (or `git diff main...HEAD` if on a feature branch).
 2. Analyze the diff to detect:
-   - Potential N+1 queries (Eloquent relations not eager-loaded in a loop).
-   - Raw SQL with concatenated user values.
-   - Disabling or bypassing of the CSRF middleware.
-   - Missing validation (`FormRequest`) on user input.
-   - Missing authorization check (`Policy`/`Gate`) on a sensitive action.
-   - Hardcoded secrets or tokens.
-   - React components with implicit `any`, untyped props, or XSS risks (unjustified `dangerouslySetInnerHTML`).
+    - Potential N+1 queries (Eloquent relations not eager-loaded in a loop).
+    - Raw SQL with concatenated user values.
+    - Disabling or bypassing of the CSRF middleware.
+    - Missing validation (`FormRequest`) on user input.
+    - Missing authorization check (`Policy`/`Gate`) on a sensitive action.
+    - Hardcoded secrets or tokens.
+    - React components with implicit `any`, untyped props, or XSS risks (unjustified `dangerouslySetInnerHTML`).
 3. Run the automated quality tools:
-   ```bash
-   ./vendor/bin/pint
-   ./vendor/bin/phpstan analyse
-   npm run lint -- --fix
-   ```
+    ```bash
+    ./vendor/bin/pint
+    ./vendor/bin/phpstan analyse
+    npm run lint -- --fix
+    ```
 4. Apply any possible automatic fixes (formatting, imports, auto-fixable ESLint rules).
 5. For any issue that **cannot be auto-fixed** (business logic, a real security flaw), do NOT silently fix it yourself: clearly flag it in your report with the relevant line and a proposed fix, for human validation.
 

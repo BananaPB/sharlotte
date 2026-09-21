@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   claude-review:
-    # Ne relance pas sur une PR encore en brouillon
+    # Skip draft PRs
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
 
@@ -29,38 +29,37 @@ jobs:
       - name: Run Claude Code PR Review
         uses: anthropics/claude-code-action@v1
         with:
-          # Utilise un token OAuth lié à ton abonnement Claude (voir le guide
-          # d'installation, étape "Configurer le secret GitHub"). Si tu passes
-          # plus tard sur une clé API, remplace par `anthropic_api_key`.
+          # Uses an OAuth token tied to your Claude subscription (see the
+          # setup guide, "Configure the GitHub secret" step). If you switch
+          # to an API key later, replace this with `anthropic_api_key`.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Le prompt reprend explicitement le rôle "Agent PR Reviewer" décrit
-          # dans le workflow multi-agents, avec un ton pédagogique.
+          # The prompt mirrors the "PR Reviewer Agent" role described in the
+          # multi-agent workflow, with a pedagogical tone.
           prompt: |
-            Tu es l'Agent PR Reviewer de ce projet Laravel 13 / React 19 + Inertia.js.
-            Utilise le fichier CLAUDE.md du repo comme référence de style et de
-            conventions — respecte-le strictement dans ta revue.
+            You are the PR Reviewer Agent for this Laravel 13 / React 19 +
+            Inertia.js project. Use the repo's CLAUDE.md as your style and
+            conventions reference — follow it strictly in your review.
 
-            Analyse le diff de cette pull request et :
+            Analyze this pull request's diff and:
 
-            1. Vérifie la sécurité : CSRF, injections SQL, N+1, autorisation
-               (Policies/Gates), validation des entrées (FormRequests).
-            2. Vérifie le respect des conventions de nommage et des règles
-               strictes listées dans CLAUDE.md (sections 3 et 4).
-            3. Pour chaque point soulevé, explique le "pourquoi" de manière
-               pédagogique — ce projet est maintenu par un développeur qui
-               apprend Laravel 13 et React 19, donc les remarques doivent être
-               formatrices, pas seulement correctives.
-            4. Laisse des commentaires en ligne sur les points précis du code
-               (via l'outil de commentaire inline), et un résumé global en
-               commentaire de PR listant : les points bloquants, les
-               suggestions, et ce qui est déjà bien fait.
-            5. Ne modifie aucun fichier et n'ouvre aucun commit — cette
-               review est en lecture seule, le contrôle humain du merge
-               reste entier.
+            1. Check security: CSRF, SQL injection, N+1 queries, authorization
+               (Policies/Gates), input validation (FormRequests).
+            2. Check compliance with the naming conventions and strict rules
+               listed in CLAUDE.md (sections 3 and 4).
+            3. For each point raised, explain the "why" in a pedagogical way —
+               this project is maintained by a developer learning Laravel 13
+               and React 19, so remarks should be educational, not merely
+               corrective.
+            4. Leave inline comments on specific points in the code (via the
+               inline comment tool), and an overall summary as a PR comment
+               listing: blocking issues, suggestions, and what's already done
+               well.
+            5. Do not modify any files or open any commits — this review is
+               read-only, human control over the merge remains intact.
 
-            Utilise `gh pr diff` et `gh pr view` pour lire le contexte de la PR,
-            et poste ton résumé avec `gh pr comment`.
+            Use `gh pr diff` and `gh pr view` to read the PR context, and post
+            your summary with `gh pr comment`.
 
           claude_args: >-
             --allowed-tools

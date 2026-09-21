@@ -13,15 +13,15 @@ Guarantee relevant test coverage on the current `git diff`, written in Pest (bac
 ## Steps
 
 1. Identify the modified files (`git diff --name-only`) and infer the necessary tests:
-   - New controller/action → Pest feature test (`tests/Feature/`) covering the nominal case, invalid validation, and denied authorization.
-   - New model/business rule → Pest unit test (`tests/Unit/`).
-   - New React component with logic (not just static display) → Vitest test.
+    - New controller/action → Pest feature test (`tests/Feature/`) covering the nominal case, invalid validation, and denied authorization.
+    - New model/business rule → Pest unit test (`tests/Unit/`).
+    - New React component with logic (not just static display) → Vitest test.
 2. Write the tests following the naming conventions from `CLAUDE.md` (section 4), in explicit business language.
 3. Run:
-   ```bash
-   ./vendor/bin/pest
-   npm run test:unit
-   ```
+    ```bash
+    ./vendor/bin/pest
+    npm run test:unit
+    ```
 4. If a test fails because of a real bug in the code (not in the test), do NOT fix the code yourself: report it to the `dev` agent via your report. You can fix a test you wrote poorly yourself, but never business logic.
 5. Check coverage of edge cases: empty input, unauthorized user, nonexistent resource, duplicate.
 

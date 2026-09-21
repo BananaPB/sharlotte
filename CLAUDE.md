@@ -12,20 +12,20 @@ Before any task touching the business domain (ingredients, products, preparation
 
 ## 2. Tech stack
 
-| Domain | Tech | Version |
-|---|---|---|
-| Backend | Laravel | 13.x |
-| Backend language | PHP | 8.3+ |
-| Backend/frontend bridge | Inertia.js | latest stable |
-| Frontend | React | 19 (official Laravel starter kit) |
-| Frontend language | TypeScript | strict |
-| CSS | Tailwind CSS | v4 |
-| UI components | shadcn/ui | — |
-| Backend tests | Pest PHP | — |
-| Frontend tests | Vitest | — |
-| PHP static analysis | Larastan / PHPStan | level ≥ 6 |
-| PHP linter | Pint | `laravel` preset |
-| JS/TS linter | ESLint | starter kit config |
+| Domain                  | Tech               | Version                           |
+| ----------------------- | ------------------ | --------------------------------- |
+| Backend                 | Laravel            | 13.x                              |
+| Backend language        | PHP                | 8.3+                              |
+| Backend/frontend bridge | Inertia.js         | latest stable                     |
+| Frontend                | React              | 19 (official Laravel starter kit) |
+| Frontend language       | TypeScript         | strict                            |
+| CSS                     | Tailwind CSS       | v4                                |
+| UI components           | shadcn/ui          | —                                 |
+| Backend tests           | Pest PHP           | —                                 |
+| Frontend tests          | Vitest             | —                                 |
+| PHP static analysis     | Larastan / PHPStan | level ≥ 6                         |
+| PHP linter              | Pint               | `laravel` preset                  |
+| JS/TS linter            | ESLint             | starter kit config                |
 
 ## 3. Strict rules (non-negotiable)
 
@@ -41,6 +41,7 @@ Before any task touching the business domain (ingredients, products, preparation
 ## 4. Naming conventions
 
 ### Backend (Laravel/PHP)
+
 - Controllers: `PascalCase` + `Controller` suffix (e.g. `InvoiceController`), one controller per resource, RESTful actions (`index`, `store`, `update`, `destroy`, etc.).
 - Models: singular `PascalCase` (e.g. `Invoice`), relations named explicitly (`items()` rather than `getItems()`).
 - FormRequests: `<Action><Model>Request` (e.g. `StoreInvoiceRequest`).
@@ -49,6 +50,7 @@ Before any task touching the business domain (ingredients, products, preparation
 - Pest tests: one test file per class under test, `Test.php` suffix, describe blocks named in business language (`it('refuses to create an invoice without a client', ...)`).
 
 ### Frontend (React/TypeScript/Inertia)
+
 - Components: `PascalCase`, one component per file, file named like the component.
 - Inertia pages: in `resources/js/pages/`, mirroring the route structure (e.g. `resources/js/pages/invoices/Index.tsx`).
 - shadcn/ui components: never modify the generated files in `resources/js/components/ui/` directly; compose on top of them in `resources/js/components/`.

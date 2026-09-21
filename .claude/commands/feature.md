@@ -11,9 +11,9 @@ You are orchestrating the start of the multi-agent workflow for a new feature: *
 2. Determine a short, explicit branch name from the description (`feature/<short-name>`), propose it, and create it: `git checkout -b feature/<short-name>`.
 3. Invoke the **dev** sub-agent (see `.claude/agents/dev.md`) with the full feature description, explicitly reminding it to respect `CLAUDE.md`.
 4. Once the dev agent is done, display a clear summary for the human:
-   - List of created/modified files (`git status --short`).
-   - Non-trivial technical decisions made by the dev agent.
-   - Explicit suggestion for next steps: run `/audit` then `/test` before opening the PR.
+    - List of created/modified files (`git status --short`).
+    - Non-trivial technical decisions made by the dev agent.
+    - Explicit suggestion for next steps: run `/audit` then `/test` before opening the PR.
 
 ## Important
 
