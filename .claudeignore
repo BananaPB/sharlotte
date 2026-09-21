@@ -23,7 +23,6 @@ coverage/
 # Verrous de dépendances (volumineux, rarement utiles au contexte)
 composer.lock
 package-lock.json
-pnpm-lock.yaml
 bun.lockb
 
 # Assets binaires
