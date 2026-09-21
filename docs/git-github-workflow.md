@@ -81,20 +81,48 @@ That's why `dependabot/github_actions/...` exists as a branch and has its own op
 
 ## 7. The daily loop, once this is all working
 
+This project's `.claude/` agents exist so you're never guessing which command comes next — each one ends its report by telling you the next command to run. The full loop, git and agents interleaved:
+
 ```
-git checkout -b feature/thing     create a branch for one piece of work
-  ... edit files ...
-git add -A && git commit -m "..."  commit locally (as you already do)
-git push -u origin feature/thing   send the branch to GitHub
+/cto <question>                    OPTIONAL — unsure of direction/stack before starting? Ask first.
+                                    Ends in a DECIDE ("then run /feature ..."), a DEFER, or a DON'T.
+
+/feature <description>             Creates the branch (feature/... or fix/...) AND runs the dev
+                                    agent to write the code. You don't run `git checkout -b`
+                                    yourself — this command does it.
+  ... review the diff yourself ...
+  → suggests: /audit
+
+/audit                              Quality & Security agent: Pint/Larastan/ESLint, N+1/CSRF/
+                                    validation/auth checks on the diff. Auto-fixes what it can.
+  ... fix anything flagged CRITICAL before continuing ...
+  → suggests: /test  (or: fixes needed first)
+
+/test                               QA agent: writes and runs Pest/Vitest coverage for the diff.
+  ... if a test fails on a REAL bug (not a bad test), it hands that back to you to re-run
+      /feature with a fix description — it never patches business logic itself ...
+  → suggests: /cto (to get the exact git sequence)
+
+/cto                                 Reviews the audit + test reports actually in context and
+                                    gives you the real commands, filled in — not a template:
+                                    git add <files>, a commit message, git push, gh pr create.
+
+git push -u origin <branch>         send the branch to GitHub (from /cto's suggested commands)
                                     → open a Pull Request on GitHub (base: main)
                                     → CI runs automatically
                                     → you review + approve (or fix issues and push again)
                                     → "Merge pull request" once everything is green
+
 git checkout main && git pull      bring the merged result back to your machine
-git branch -d feature/thing        delete the now-merged local branch
+git branch -d <branch>             delete the now-merged local branch
+
+/doc                                 ONLY if the merged feature was structuring (new domain,
+                                    new tables/routes) — updates architecture.md + changelog.md.
 ```
 
-Every one of your `/feature` → `/audit` → `/test` sessions produces the "edit, commit" part of this loop on a feature branch. Push, PR, and merge are the parts that happen on GitHub afterward, by you.
+**When to create a branch**: never by hand — `/feature` does it as its first step, from a clean working tree. If you're mid-branch and want to keep going, just keep calling `/audit` / `/test` again after further edits; they always operate on "current branch vs. `main`", not a fixed snapshot.
+
+**When to call `/cto`**: twice, typically — once *before* `/feature` if you're not sure this is the right approach at all (stack, infra, "should this even be built"), and once *after* `/test` passes, to close out the branch with the actual git commands. It's the only command in the loop that isn't tied to a fixed step, which is also why it's the one that reviews the finished work rather than producing more of it.
 
 ## 8. Quick glossary
 
