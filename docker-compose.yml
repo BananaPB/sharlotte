@@ -1,0 +1,47 @@
+# Local Postgres for development, mirroring .github/workflows/tests.yml's CI service
+# container so "works on my machine, red in CI" differences aren't a class of bug we
+# have to debug (see docs/decisions.md entry 5 — Postgres is required everywhere,
+# SQLite's type affinity silently does float math on decimal nutrition columns).
+#
+# Usage:
+#   docker compose up -d
+#   cp .env.example .env   (if not already done)
+#   # then edit .env and set DB_PASSWORD=postgres to match POSTGRES_PASSWORD below —
+#   # .env.example intentionally ships with a blank DB_PASSWORD placeholder since it's
+#   # committed to git; this compose file's password is a local-only, throwaway value,
+#   # not a production secret, so it's safe to hardcode here.
+#   php artisan migrate
+#
+# This starts a single Postgres server holding two databases:
+#   - sharlotte: the dev database (DB_DATABASE in .env.example), created automatically
+#     from POSTGRES_DB below on first boot.
+#   - testing: used only by the Pest suite (DB_DATABASE in phpunit.xml), rebuilt/rolled
+#     back per test run and never holding real ingredient data. Postgres only
+#     auto-creates the one database named by POSTGRES_DB, so
+#     docker/postgres/init-testing-db.sql (mounted below) runs once on first boot to
+#     create the second one. If you already had a data volume before this file existed,
+#     delete it (`docker compose down -v`) so the init script re-runs, or create the
+#     database by hand: `docker compose exec postgres createdb -U postgres testing`.
+services:
+    postgres:
+        # Same tag as the `postgres` service container in .github/workflows/tests.yml, on
+        # purpose: keeps local dev and CI on identical Postgres behavior.
+        image: postgres:17-alpine
+        environment:
+            POSTGRES_USER: postgres
+            # Local-only default, not a production secret — see the usage note above.
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: sharlotte
+        ports:
+            - '5432:5432'
+        volumes:
+            - sharlotte-postgres-data:/var/lib/postgresql/data
+            - ./docker/postgres/init-testing-db.sql:/docker-entrypoint-initdb.d/init-testing-db.sql:ro
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U postgres']
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+volumes:
+    sharlotte-postgres-data:
