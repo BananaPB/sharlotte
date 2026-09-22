@@ -22,6 +22,8 @@ Real decisions, deliberately not made yet, each with the event that should bring
 
 - **Extract the calculation engine into a shared Composer package** — when a second real consumer exists _and_ the HTTP coupling in decision 3 is measurably painful. _(deferred 2026-09-21)_
 - **Cache ingredient data on the B2B side to survive sharlotte outages** — when Phase 4 starts. _(deferred 2026-09-21)_
+- **Translate ingredient/category data and add multi-locale support** — when an actual non-French-speaking user or use case appears (e.g. publishing the CC-BY dataset in English). _(deferred 2026-09-22)_
+- **"Family"/team-shared ingredient visibility (brand accounts sharing ingredients across shops)** — not unless a B2B SaaS customer (Phase 4, separate repo) needs it there; this repo stays one-account-one-person per `vision.md`. _(deferred 2026-09-22)_
 
 ---
 
