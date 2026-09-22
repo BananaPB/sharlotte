@@ -6,15 +6,22 @@
 # Usage:
 #   docker compose up -d
 #   cp .env.example .env   (if not already done)
-#   # then edit .env and set DB_PASSWORD=postgres to match POSTGRES_PASSWORD below —
-#   # .env.example intentionally ships with a blank DB_PASSWORD placeholder since it's
-#   # committed to git; this compose file's password is a local-only, throwaway value,
-#   # not a production secret, so it's safe to hardcode here.
 #   php artisan migrate
 #
+# POSTGRES_USER/PASSWORD/DB below read from this directory's .env file — the same one
+# Laravel reads — via Docker Compose's own automatic .env-loading convention (it loads
+# a .env file next to the compose file for ${VAR} substitution, unprompted; this isn't
+# a coincidence between two unrelated mechanisms, it's deliberate so the container and
+# Laravel's DB_* config always agree with no manual reconciliation step). The `:-`
+# fallbacks kick in for both an unset var and an empty one, so a fresh clone with no
+# .env yet, or a .env copied straight from .env.example (whose DB_PASSWORD is
+# intentionally blank), still boots with the same working defaults as before:
+# postgres/postgres/sharlotte. Those defaults are local-only throwaway values, not
+# production secrets, so it's safe for them to live here.
+#
 # This starts a single Postgres server holding two databases:
-#   - sharlotte: the dev database (DB_DATABASE in .env.example), created automatically
-#     from POSTGRES_DB below on first boot.
+#   - sharlotte (or whatever DB_DATABASE is set to): the dev database, created
+#     automatically from POSTGRES_DB below on first boot.
 #   - testing: used only by the Pest suite (DB_DATABASE in phpunit.xml), rebuilt/rolled
 #     back per test run and never holding real ingredient data. Postgres only
 #     auto-creates the one database named by POSTGRES_DB, so
@@ -28,10 +35,10 @@ services:
         # purpose: keeps local dev and CI on identical Postgres behavior.
         image: postgres:17-alpine
         environment:
-            POSTGRES_USER: postgres
+            POSTGRES_USER: ${DB_USERNAME:-postgres}
             # Local-only default, not a production secret — see the usage note above.
-            POSTGRES_PASSWORD: postgres
-            POSTGRES_DB: sharlotte
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+            POSTGRES_DB: ${DB_DATABASE:-sharlotte}
         ports:
             - '5432:5432'
         volumes:
