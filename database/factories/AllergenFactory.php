@@ -26,6 +26,11 @@ class AllergenFactory extends Factory
      */
     public function definition(): array
     {
+        // words($nb, asText: true) always returns a string, but PHPStan types the return as
+        // array|string since it can't narrow on a literal boolean argument. A (string) cast
+        // would silence PHPStan's array|string=>string check but trips its separate
+        // array-to-string cast warning instead, so narrow via @var here.
+        /** @var string $label */
         $label = fake()->unique()->words(2, true);
 
         return [

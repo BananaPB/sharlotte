@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\IngredientStorage;
 use App\Models\Ingredient;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -30,6 +31,11 @@ class IngredientFactory extends Factory
      */
     public function definition(): array
     {
+        // words($nb, asText: true) always returns a string, but PHPStan types the return as
+        // array|string since it can't narrow on a literal boolean argument. A (string) cast
+        // would silence PHPStan's array|string=>string check but trips its separate
+        // array-to-string cast warning instead, so narrow via @var here.
+        /** @var string $name */
         $name = fake()->unique()->words(3, true);
         $storage = fake()->randomElement(IngredientStorage::cases());
 
@@ -62,6 +68,12 @@ class IngredientFactory extends Factory
     public function private(): static
     {
         return $this->state(function (array $attributes): array {
+            // Factory::create()'s general signature returns User|Collection<int, User> since
+            // it can be called with a count; calling UserFactory::new() directly (rather than
+            // User::factory(), see class docblock) means PHPStan's usual narrowing for the
+            // conventional call pattern doesn't apply here, though a single instance is always
+            // returned in practice since no count is passed.
+            /** @var User $owner */
             $owner = UserFactory::new()->create();
             $storage = $attributes['storage'] ?? IngredientStorage::Fresh;
             $name = $attributes['name'] ?? fake()->unique()->words(3, true);
