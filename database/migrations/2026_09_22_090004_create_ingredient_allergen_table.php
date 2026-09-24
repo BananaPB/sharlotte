@@ -22,6 +22,11 @@ return new class extends Migration
             $table->foreignId('allergen_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
             $table->primary(['ingredient_id', 'allergen_id']);
+            // The composite PK above only efficiently serves lookups on its leading column
+            // (ingredient_id, i.e. Ingredient::allergens()). The reverse direction —
+            // Allergen::ingredients(), needed by Phase 2's allergen-union/dedup logic across
+            // the composition tree — needs allergen_id indexed on its own.
+            $table->index('allergen_id');
         });
     }
 

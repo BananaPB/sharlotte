@@ -30,6 +30,14 @@ return new class extends Migration
             // docs/domain-model.md) — with no other user able to see or reference them, they
             // have no meaning once that owner is gone, so deleting the user cascades here.
             $table->foreignId('owner_id')->nullable()->constrained('users')->cascadeOnDelete();
+            // Unlike MySQL/InnoDB, Postgres does not auto-index a foreign key column — only
+            // the referenced primary key is indexed automatically. Phase 2's queries filter
+            // and join on both, so index them explicitly. Chaining ->index() directly onto
+            // ->constrained()->...OnDelete() would silently no-op: constrained() returns a
+            // separate ForeignKeyDefinition object, not the column, so the fluent modifier
+            // would land on the wrong object.
+            $table->index('category_id');
+            $table->index('owner_id');
             $table->string('name');
             $table->string('slug')->unique();
             $table->enum('storage', ['fresh', 'frozen', 'dry']);
