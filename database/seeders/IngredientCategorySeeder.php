@@ -33,7 +33,7 @@ class IngredientCategorySeeder extends Seeder
         ['code' => 'beverages', 'label_fr' => 'Boissons', 'description_fr' => 'Jus, nectars, alcools, eaux et autres boissons.'],
         ['code' => 'baking_cooking_aids', 'label_fr' => 'Aides à la cuisine, pâtisserie & boulangerie', 'description_fr' => 'Levures, poudres, décorations comestibles, pâtes préemballées etc.'],
         ['code' => 'meat_cheese_substitutes', 'label_fr' => 'Produits simili viandes & fromages', 'description_fr' => 'Produits végétaux, végétariens ou végétaliens en alternative aux viandes et fromages.'],
-        ['code' => 'appetizers_biscuits', 'label_fr' => 'Apéritifs & biscuits', 'description_fr' => 'Biscuits salés, apéritifs etc.'],
+        ['code' => 'appetizers_biscuits', 'label_fr' => 'Appéritifs & biscuits', 'description_fr' => 'Biscuits salés, apéritifs etc.'],
         ['code' => 'savory_preparations', 'label_fr' => 'Appareils salés', 'description_fr' => 'Préparations de base, salées.'],
         ['code' => 'sweet_preparations', 'label_fr' => 'Appareils sucrés', 'description_fr' => 'Préparations de base, sucrées.'],
         ['code' => 'fermented_doughs', 'label_fr' => 'Pâtes fermentées', 'description_fr' => 'Préparations à base de levure pour pain et viennoiseries.'],

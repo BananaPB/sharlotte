@@ -29,7 +29,7 @@ class AllergenSeeder extends Seeder
         ['code' => 'tree_nuts', 'label_fr' => 'Fruits à coque'],
         ['code' => 'celery', 'label_fr' => 'Céleri'],
         ['code' => 'mustard', 'label_fr' => 'Moutarde'],
-        ['code' => 'sesame', 'label_fr' => 'Graines de sésame'],
+        ['code' => 'sesame', 'label_fr' => 'Sésame'],
         ['code' => 'sulphites', 'label_fr' => 'Sulfites'],
         ['code' => 'lupin', 'label_fr' => 'Lupin'],
         ['code' => 'molluscs', 'label_fr' => 'Mollusques'],
