@@ -182,6 +182,24 @@ test('buildSlug disambiguates a public ingredient from the same name owned priva
         ->and(Ingredient::buildSlug('Carotte', IngredientStorage::Fresh, 42))->toBe('carotte-fresh-u42');
 });
 
+test('defaults to_review to false and casts it to a real boolean', function () {
+    $category = IngredientCategoryFactory::new()->create();
+
+    // Deliberately omits to_review from the create() payload — this is what proves the
+    // column's own DB-level default (not the factory's explicit `false`) is what applies.
+    $ingredient = Ingredient::query()->create([
+        'category_id' => $category->id,
+        'name' => 'Unflagged ingredient',
+        'slug' => 'unflagged-ingredient-fresh',
+        'storage' => IngredientStorage::Fresh,
+    ]);
+
+    $reloaded = Ingredient::query()->findOrFail($ingredient->id);
+
+    expect($reloaded->to_review)->toBeFalse()
+        ->and($reloaded->to_review)->toBeBool();
+});
+
 test('rejects a duplicate slug at the database level', function () {
     IngredientFactory::new()->create(['slug' => 'duplicate-slug']);
 

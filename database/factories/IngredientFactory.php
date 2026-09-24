@@ -58,6 +58,9 @@ class IngredientFactory extends Factory
             'proteins' => fake()->numberBetween(0, 100),
             'salt' => fake()->numberBetween(0, 100),
             'water' => fake()->numberBetween(0, 100),
+            // Matches the DB default: most factory-made ingredients are not flagged for
+            // review; tests that specifically exercise the flag override this explicitly.
+            'to_review' => false,
         ];
     }
 
