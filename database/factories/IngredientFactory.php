@@ -1,0 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Factories;
+
+use App\Enums\IngredientStorage;
+use App\Models\Ingredient;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/**
+ * Test-support factory only — public ingredient data is imported via
+ * App\Console\Commands\ImportIngredientsCommand, not this factory. The model has no
+ * HasFactory trait (it has no production use for one), so this factory is used directly as
+ * `IngredientFactory::new()` rather than `Ingredient::factory()`.
+ *
+ * Nutrition values default to plain, round numbers — tests that specifically exercise
+ * decimal-precision round-tripping (the point of docs/decisions.md #5) override these with
+ * explicit float-drift-prone values rather than relying on whatever the factory randomizes.
+ *
+ * @extends Factory<Ingredient>
+ */
+class IngredientFactory extends Factory
+{
+    /** @var class-string<Ingredient> */
+    protected $model = Ingredient::class;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function definition(): array
+    {
+        $name = fake()->unique()->words(3, true);
+        $storage = fake()->randomElement(IngredientStorage::cases());
+
+        return [
+            // Implicit relationship resolution: Eloquent factories resolve a Factory
+            // instance assigned to a `<relation>_id`-shaped key by creating it and using its
+            // key, matched against Ingredient::category()/owner() by convention — no
+            // HasFactory trait required on either model for this to work.
+            'category_id' => IngredientCategoryFactory::new(),
+            'owner_id' => null,
+            'name' => $name,
+            'slug' => Ingredient::buildSlug($name, $storage, null),
+            'storage' => $storage,
+            'calories' => fake()->numberBetween(0, 900),
+            'fats' => fake()->numberBetween(0, 100),
+            'saturates' => fake()->numberBetween(0, 100),
+            'carbohydrates' => fake()->numberBetween(0, 100),
+            'sugars' => fake()->numberBetween(0, 100),
+            'fibers' => fake()->numberBetween(0, 100),
+            'proteins' => fake()->numberBetween(0, 100),
+            'salt' => fake()->numberBetween(0, 100),
+            'water' => fake()->numberBetween(0, 100),
+        ];
+    }
+
+    /**
+     * A private ingredient owned by a freshly-created user, with a slug consistent with that
+     * ownership (see Ingredient::buildSlug()'s "-u{ownerId}" suffix).
+     */
+    public function private(): static
+    {
+        return $this->state(function (array $attributes): array {
+            $owner = UserFactory::new()->create();
+            $storage = $attributes['storage'] ?? IngredientStorage::Fresh;
+            $name = $attributes['name'] ?? fake()->unique()->words(3, true);
+
+            return [
+                'owner_id' => $owner->id,
+                'slug' => Ingredient::buildSlug($name, $storage, $owner->id),
+            ];
+        });
+    }
+}
