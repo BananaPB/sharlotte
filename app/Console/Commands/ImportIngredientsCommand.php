@@ -238,9 +238,9 @@ class ImportIngredientsCommand extends Command
     /**
      * @param  array<string, string>  $cells
      * @param  array<string, string>  $rawCells  same keys as $cells, but without the "null"
-     *                                            literal → '' normalization, used only for
-     *                                            error messages so they quote what the source
-     *                                            file actually contained.
+     *                                           literal → '' normalization, used only for
+     *                                           error messages so they quote what the source
+     *                                           file actually contained.
      * @param  Collection<string, IngredientCategory>  $categories
      * @param  Collection<string, Allergen>  $allergens
      * @param  array<string, int>  $seenSlugs
