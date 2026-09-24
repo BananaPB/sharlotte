@@ -94,19 +94,21 @@ As of `docs/decisions.md` entry 7 (2026-09-24), this chains automatically — yo
   (automatic) /audit                Quality & Security agent: Pint/Larastan/ESLint, N+1/CSRF/
                                     validation/auth checks. Auto-fixes what it can; dispatches
                                     `dev` for the rest and re-audits, capped at 2 rounds on the
-                                    same finding. A CRITICAL finding always stops here for you.
+                                    same finding (or 4 total, so a fix that introduces a new
+                                    finding each round doesn't dodge the cap). A CRITICAL finding
+                                    always stops here for you.
 
   (automatic) /test                 QA agent: writes and runs Pest/Vitest coverage. A real bug
                                     (not a bad test) gets sent back to `dev` and re-tested, same
-                                    2-round cap. Once green: commits, pushes, and opens the PR
-                                    itself — no separate confirmation for that step.
+                                    2-round/4-total cap. Once green: commits, pushes, and opens
+                                    the PR itself — no separate confirmation for that step.
 
   (automatic) watch the PR          Polls CI and the automated PR review every few minutes.
                                     Green and clean → stops and tells you it's ready for review.
                                     A failure → diagnoses, dispatches the right agent, pushes a
-                                    fix, keeps watching. Repeats past 2 rounds, or looks like a
-                                    local/environment issue → stops and hands it back to you
-                                    directly instead of guessing further.
+                                    fix, keeps watching. Repeats past the same 2-round/4-total cap,
+                                    or looks like a local/environment issue → stops and hands it
+                                    back to you directly instead of guessing further.
 
   ... you review the PR on GitHub, ask questions, "Merge pull request" once satisfied ...
 
