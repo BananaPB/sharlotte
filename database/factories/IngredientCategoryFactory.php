@@ -36,6 +36,7 @@ class IngredientCategoryFactory extends Factory
         return [
             'code' => Str::slug($label, '_'),
             'label_fr' => ucfirst($label),
+            'description_fr' => fake()->sentence(),
         ];
     }
 }
