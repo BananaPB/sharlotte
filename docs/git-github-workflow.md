@@ -81,54 +81,49 @@ That's why `dependabot/github_actions/...` exists as a branch and has its own op
 
 ## 7. The daily loop, once this is all working
 
-This project's `.claude/` agents exist so you're never guessing which command comes next — each one ends its report by telling you the next command to run. The full loop, git and agents interleaved:
+As of `docs/decisions.md` entry 7 (2026-09-24), this chains automatically — you only step back in at the start and at the end:
 
 ```
 /cto <question>                    OPTIONAL — unsure of direction/stack before starting? Ask first.
                                     Ends in a DECIDE ("then run /feature ..."), a DEFER, or a DON'T.
 
-/feature <description>             Creates the branch (feature/... or fix/...) AND runs the dev
-                                    agent to write the code. You don't run `git checkout -b`
-                                    yourself — this command does it.
-  ... review the diff yourself ...
-  → suggests: /audit
+/feature <description>             Creates the branch (feature/... or fix/...), runs the dev agent,
+                                    then continues straight into /audit — no confirmation needed
+                                    in between. You don't run `git checkout -b` yourself.
 
-/audit                              Quality & Security agent: Pint/Larastan/ESLint, N+1/CSRF/
-                                    validation/auth checks on the diff. Auto-fixes what it can.
-  ... fix anything flagged CRITICAL before continuing ...
-  → suggests: /test  (or: fixes needed first)
+  (automatic) /audit                Quality & Security agent: Pint/Larastan/ESLint, N+1/CSRF/
+                                    validation/auth checks. Auto-fixes what it can; dispatches
+                                    `dev` for the rest and re-audits, capped at 2 rounds on the
+                                    same finding. A CRITICAL finding always stops here for you.
 
-/test                               QA agent: writes and runs Pest/Vitest coverage for the diff.
-  ... if a test fails on a REAL bug (not a bad test), it hands that back to you to re-launch
-      the `dev` agent directly with a fix description (same branch, no new `/feature` call) —
-      it never patches business logic itself ...
-  → suggests: /cto (to get the exact git sequence)
+  (automatic) /test                 QA agent: writes and runs Pest/Vitest coverage. A real bug
+                                    (not a bad test) gets sent back to `dev` and re-tested, same
+                                    2-round cap. Once green: commits, pushes, and opens the PR
+                                    itself — no separate confirmation for that step.
 
-/cto                                 Reviews the audit + test reports actually in context and
-                                    gives you the real commands, filled in — not a template:
-                                    git add <files>, a commit message, git push, gh pr create.
+  (automatic) watch the PR          Polls CI and the automated PR review every few minutes.
+                                    Green and clean → stops and tells you it's ready for review.
+                                    A failure → diagnoses, dispatches the right agent, pushes a
+                                    fix, keeps watching. Repeats past 2 rounds, or looks like a
+                                    local/environment issue → stops and hands it back to you
+                                    directly instead of guessing further.
 
-npm run check:fix                   Run this yourself, in a fresh PowerShell/cmd window — NOT
-                                    Git Bash, where it's a confirmed dead end (see §9.4). Catches
-                                    the same formatting check `ci` runs, before you push instead
-                                    of after.
+  ... you review the PR on GitHub, ask questions, "Merge pull request" once satisfied ...
 
-git push -u origin <branch>         send the branch to GitHub (from /cto's suggested commands)
-                                    → open a Pull Request on GitHub (base: main)
-                                    → CI runs automatically
-                                    → you review + approve (or fix issues and push again)
-                                    → "Merge pull request" once everything is green
-
-git checkout main && git pull      bring the merged result back to your machine
-git branch -d <branch>             delete the now-merged local branch
+  "I merged"                        Tell the session you merged it — it runs
+                                    git checkout main && git pull && git branch -d <branch> itself.
 
 /doc                                 ONLY if the merged feature was structuring (new domain,
                                     new tables/routes) — updates architecture.md + changelog.md.
 ```
 
-**When to create a branch**: never by hand — `/feature` does it as its first step, from a clean working tree. If you're mid-branch and want to keep going, just keep calling `/audit` / `/test` again after further edits; they always operate on "current branch vs. `main`", not a fixed snapshot.
+Merging is never automatic — that's always you, on GitHub, and stays the real gate.
 
-**When to call `/cto`**: twice, typically — once _before_ `/feature` if you're not sure this is the right approach at all (stack, infra, "should this even be built"), and once _after_ `/test` passes, to close out the branch with the actual git commands. It's the only command in the loop that isn't tied to a fixed step, which is also why it's the one that reviews the finished work rather than producing more of it.
+**Prefer to run a step manually anyway?** `/audit` and `/test` are still individually invocable — call one directly after your own manual edits and it picks up from "current branch vs. `main`", same as always. `/cto`'s wrap-up mode still exists too, for a manual git sequence on request — most useful for picking back up after the automatic chain has escalated something to you.
+
+**When to create a branch**: never by hand — `/feature` does it as its first step, from a clean working tree.
+
+**When to call `/cto`**: mainly _before_ `/feature`, if you're not sure this is the right approach at all (stack, infra, "should this even be built"). The automatic chain now handles the "close out the branch" call itself; `/cto`'s wrap-up mode is there if you ever want the manual version of that instead.
 
 ## 8. Quick glossary
 

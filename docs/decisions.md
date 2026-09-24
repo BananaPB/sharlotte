@@ -29,6 +29,18 @@ Real decisions, deliberately not made yet, each with the event that should bring
 
 _Entries 1–4 were recorded retroactively on 2026-09-21 from [`vision.md`](vision.md), [`roadmap.md`](roadmap.md), and [`architecture.md`](architecture.md). They describe choices already made at repo initialization, not new ones._
 
+## 7. Autonomous dev→audit→test→PR pipeline, human gates only at task-selection and merge
+
+**2026-09-24 · Accepted**
+
+Up to now, `/feature`, `/audit`, and `/test` each stopped and waited for a manual trigger for the next step, including committing/pushing/opening the PR and checking CI/review results, even though the only two decisions that actually mattered — what to build, and whether a PR is good enough to merge — were untouched by that friction. So: the orchestrating session now chains dev → audit (capped auto-fix-loop) → test (capped auto-fix-loop) → commit → push → PR automatically once told to start, then watches CI and the automated PR review (via the `loop` skill) until the PR is clean, dispatching fix agents as needed, and only surfaces back to the user when it's ready for review — or immediately if a failure repeats past 2 fix-rounds or looks like something only the user can fix (local machine/environment issues, confirmed a real failure mode firsthand via the Postgres/WSL2/PHP-driver debugging chain in this same session). CRITICAL security findings from `/audit` always stop the chain for an explicit human call, regardless of the rest of this entry.
+
+**Rejected**: keep every step manual (the status quo) — matches a real, stated frustration with constant re-prompting, with no corresponding safety benefit since nothing merges without review either way; fully autonomous through merge — explicitly rejected, since a bad autonomous merge is much costlier to unwind than a bad autonomous PR sitting unreviewed.
+
+**Costs**: every future `/feature` run pushes branches and opens PRs without a mid-flight confirmation — a real trust escalation from "confirm before every push" to "confirm before every merge." A capped fix-loop can still spend a round or two chasing a failure that isn't actually fixable by an agent before the escalation rule catches it. The local `npm run check:fix` step can't run autonomously from this session's environment (Git Bash has a confirmed dead end here, see `docs/git-github-workflow.md` §9.4) — the pipeline relies on CI's formatting gate instead, costing an occasional extra CI round-trip when formatting drifts, rather than blocking the automation on a step that can't run headlessly here.
+
+**Revisit when**: the fix-loop burns meaningful time or tokens on something it shouldn't have retried, or a future environment change (e.g. moving the toolchain into WSL2, floated earlier this session) makes the local formatting check runnable autonomously after all.
+
 ## 6. npm, not pnpm
 
 **2026-09-21 · Accepted**
