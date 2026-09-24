@@ -3,6 +3,10 @@ name: AI PR Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.claude/**'
 
 concurrency:
   group: ai-pr-review-${{ github.event.pull_request.number }}
