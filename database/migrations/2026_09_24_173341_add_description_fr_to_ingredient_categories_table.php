@@ -25,7 +25,7 @@ return new class extends Migration
         Schema::table('ingredient_categories', function (Blueprint $table) {
             // Non-nullable, no default: requires `migrate:fresh` against a pre-existing,
             // already-seeded `ingredient_categories` table (see docblock above).
-            $table->string('description_fr')->after('label_fr');
+            $table->string('description_fr');
         });
     }
 
