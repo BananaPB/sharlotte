@@ -31,6 +31,19 @@ test('enforces a unique code', function () {
         ->toThrow(QueryException::class);
 });
 
+test('requires a description at the database level', function () {
+    // create() only inserts the attributes given, so omitting `description_fr` here leaves
+    // the column out of the INSERT entirely — the migration gives it no default, so this
+    // must fail on the NOT NULL constraint rather than silently storing an empty string.
+    //
+    // Own transaction (a Postgres SAVEPOINT) for the same reason as the delete-blocked test
+    // above: an expected constraint violation must not poison the outer test transaction.
+    expect(fn () => DB::transaction(fn () => IngredientCategory::query()->create([
+        'code' => 'no_description',
+        'label_fr' => 'Sans description',
+    ])))->toThrow(QueryException::class);
+});
+
 test('deleting a category is blocked while ingredients still reference it', function () {
     // `restrictOnDelete()` on ingredients.category_id (see the ingredients migration):
     // categories are a shared lookup table, so silently cascading here would delete
