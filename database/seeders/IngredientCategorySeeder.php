@@ -25,9 +25,10 @@ class IngredientCategorySeeder extends Seeder
         ['code' => 'fish', 'label_fr' => 'Poissons'],
         ['code' => 'flours_seeds', 'label_fr' => 'Farines & graines'],
         ['code' => 'dairy', 'label_fr' => 'Produits laitiers & crèmerie'],
-        // Source label is "Fruits à coque é fruits secs" (likely a typo for "et"),
-        // corrected here — confirm with the user before this ships.
-        ['code' => 'nuts_dried_fruits', 'label_fr' => 'Fruits à coque et fruits secs'],
+        // Source label is "Fruits à coque é fruits secs" (likely a typo for "&", matching
+        // the "&" separator used elsewhere in the source data), corrected here — confirm
+        // with the user before this ships.
+        ['code' => 'nuts_dried_fruits', 'label_fr' => 'Fruits à coque & fruits secs'],
     ];
 
     /**

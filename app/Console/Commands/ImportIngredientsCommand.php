@@ -115,6 +115,12 @@ class ImportIngredientsCommand extends Command
             return self::FAILURE;
         }
 
+        if ($allergens->isEmpty()) {
+            $this->error('No allergens are seeded — run AllergenSeeder first.');
+
+            return self::FAILURE;
+        }
+
         /** @var array<string, int> $seenSlugs slug => row number it was first produced on */
         $seenSlugs = [];
         $rowNumber = 1; // the header occupies row 1
@@ -175,7 +181,7 @@ class ImportIngredientsCommand extends Command
     {
         $header = fgetcsv($stream, 0, $delimiter);
 
-        if ($header === false || $header === null) {
+        if ($header === false) {
             $this->error('Could not read the CSV header row.');
 
             return null;
@@ -184,7 +190,7 @@ class ImportIngredientsCommand extends Command
         $header = array_map(static fn (mixed $value): string => trim((string) $value), $header);
 
         // Excel sometimes prepends a UTF-8 BOM to the first header cell.
-        if ($header !== [] && str_starts_with($header[0], "\u{FEFF}")) {
+        if (str_starts_with($header[0], "\u{FEFF}")) {
             $header[0] = substr($header[0], strlen("\u{FEFF}"));
         }
 

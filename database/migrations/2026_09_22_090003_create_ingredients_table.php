@@ -26,6 +26,9 @@ return new class extends Migration
         Schema::create('ingredients', function (Blueprint $table) {
             $table->id();
             $table->foreignId('category_id')->constrained('ingredient_categories')->restrictOnDelete();
+            // Private ingredients are visible to their owner only and are never shared (see
+            // docs/domain-model.md) — with no other user able to see or reference them, they
+            // have no meaning once that owner is gone, so deleting the user cascades here.
             $table->foreignId('owner_id')->nullable()->constrained('users')->cascadeOnDelete();
             $table->string('name');
             $table->string('slug')->unique();
