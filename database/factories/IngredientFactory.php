@@ -76,6 +76,11 @@ class IngredientFactory extends Factory
             /** @var User $owner */
             $owner = UserFactory::new()->create();
             $storage = $attributes['storage'] ?? IngredientStorage::Fresh;
+            // words($nb, asText: true) always returns a string, but PHPStan types the return as
+            // array|string since it can't narrow on a literal boolean argument. A (string) cast
+            // would silence PHPStan's array|string=>string check but trips its separate
+            // array-to-string cast warning instead, so narrow via @var here.
+            /** @var string $name */
             $name = $attributes['name'] ?? fake()->unique()->words(3, true);
 
             return [
