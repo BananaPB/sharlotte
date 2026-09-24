@@ -36,6 +36,7 @@ use Illuminate\Support\Str;
  * @property string|null $proteins
  * @property string|null $salt
  * @property string|null $water
+ * @property bool $to_review
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read IngredientCategory $category
@@ -59,6 +60,7 @@ class Ingredient extends Model
         'proteins',
         'salt',
         'water',
+        'to_review',
     ];
 
     /**
@@ -80,6 +82,7 @@ class Ingredient extends Model
             'proteins' => 'decimal:2',
             'salt' => 'decimal:2',
             'water' => 'decimal:2',
+            'to_review' => 'boolean',
         ];
     }
 

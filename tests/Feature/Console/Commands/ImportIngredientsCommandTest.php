@@ -148,6 +148,28 @@ describe('with categories and allergens seeded', function () {
             ->and((string) $apple->fats)->toBe('0.20');
     });
 
+    test('re-importing an ingredient never resets an existing to_review flag', function () {
+        $firstPath = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+        ]);
+        $this->artisan('ingredients:import', ['path' => $firstPath])->assertExitCode(0);
+
+        // Simulates the project owner flagging the ingredient for review after the import —
+        // this is the state the second import below must not silently clobber.
+        Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail()->update(['to_review' => true]);
+
+        // Same slug (matching name+storage), different nutrition values, so the row genuinely
+        // goes through updateOrCreate()'s "update" branch rather than being skipped entirely.
+        $secondPath = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', '55', '0.20', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+        ]);
+        $this->artisan('ingredients:import', ['path' => $secondPath])->assertExitCode(0);
+
+        $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
+        expect($apple->calories)->toBe(55)
+            ->and($apple->to_review)->toBeTrue();
+    });
+
     test('skips a row with an unrecognized storage value without aborting the rest of the import', function () {
         $path = makeIngredientsCsv([
             ['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
