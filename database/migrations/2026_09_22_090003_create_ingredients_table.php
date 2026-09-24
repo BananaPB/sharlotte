@@ -11,7 +11,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * `storage` is a stable code (fresh/frozen/dry), never the raw French word — it is
+     * `storage` is a stable code (fresh/frozen/ambient), never the raw French word — it is
      * part of the ingredient's identity per docs/domain-model.md, not a mutable attribute.
      *
      * `privacy` mirrors `owner_id`'s nullability (null = public/admin-owned) and is kept in
@@ -40,7 +40,7 @@ return new class extends Migration
             $table->index('owner_id');
             $table->string('name');
             $table->string('slug')->unique();
-            $table->enum('storage', ['fresh', 'frozen', 'dry']);
+            $table->enum('storage', ['fresh', 'frozen', 'ambient']);
             $table->enum('privacy', ['public', 'private'])->default('public');
             $table->unsignedSmallInteger('calories')->nullable();
             $table->decimal('fats', 5, 2)->nullable();

@@ -138,14 +138,29 @@ class ImportIngredientsCommand extends Command
                 continue;
             }
 
-            /** @var array<string, string> $cells */
-            $cells = array_combine($header, array_map(
+            // The user's real export writes the literal string "null" for missing values
+            // instead of leaving the cell empty. Normalizing it to '' here — rather than in
+            // every parsing function — means all downstream consumers (parseDecimal(),
+            // resolveAllergens(), etc.) treat it the same as a genuinely blank cell, since
+            // they already handle '' as "unknown"/"none".
+            //
+            // $rawCells keeps the trimmed-but-unnormalized value for the same keys, so error
+            // messages can quote what was actually in the source file (e.g. the literal
+            // 'null') instead of the blank that $cells normalizes it to.
+            /** @var array<string, string> $rawCells */
+            $rawCells = array_combine($header, array_map(
                 static fn (mixed $value): string => trim((string) $value),
                 $row
             ));
 
+            /** @var array<string, string> $cells */
+            $cells = array_map(
+                static fn (string $value): string => mb_strtolower($value) === 'null' ? '' : $value,
+                $rawCells
+            );
+
             try {
-                $this->importRow($cells, $rowNumber, $categories, $allergens, $seenSlugs);
+                $this->importRow($cells, $rawCells, $rowNumber, $categories, $allergens, $seenSlugs);
             } catch (Throwable $exception) {
                 $this->errors[] = "Row {$rowNumber}: {$exception->getMessage()}";
             }
@@ -194,6 +209,21 @@ class ImportIngredientsCommand extends Command
             $header[0] = substr($header[0], strlen("\u{FEFF}"));
         }
 
+        // Header matching is case-insensitive (the user's real export uses lowercase
+        // headers), but every downstream lookup (`$cells['Category']`, etc.) relies on
+        // REQUIRED_COLUMNS' exact casing, so each matched cell is rewritten to its
+        // canonical name here rather than left as whatever case the source file used.
+        $canonicalByLowercase = [];
+
+        foreach (self::REQUIRED_COLUMNS as $column) {
+            $canonicalByLowercase[mb_strtolower($column)] = $column;
+        }
+
+        $header = array_map(
+            static fn (string $value): string => $canonicalByLowercase[mb_strtolower($value)] ?? $value,
+            $header
+        );
+
         $missing = array_diff(self::REQUIRED_COLUMNS, $header);
 
         if ($missing !== []) {
@@ -207,11 +237,15 @@ class ImportIngredientsCommand extends Command
 
     /**
      * @param  array<string, string>  $cells
+     * @param  array<string, string>  $rawCells  same keys as $cells, but without the "null"
+     *                                            literal → '' normalization, used only for
+     *                                            error messages so they quote what the source
+     *                                            file actually contained.
      * @param  Collection<string, IngredientCategory>  $categories
      * @param  Collection<string, Allergen>  $allergens
      * @param  array<string, int>  $seenSlugs
      */
-    private function importRow(array $cells, int $rowNumber, Collection $categories, Collection $allergens, array &$seenSlugs): void
+    private function importRow(array $cells, array $rawCells, int $rowNumber, Collection $categories, Collection $allergens, array &$seenSlugs): void
     {
         $name = trim($cells['Name']);
 
@@ -222,18 +256,18 @@ class ImportIngredientsCommand extends Command
         $category = $categories->get($this->normalize($cells['Category']));
 
         if ($category === null) {
-            throw new InvalidArgumentException("unrecognized Category '{$cells['Category']}'");
+            throw new InvalidArgumentException("unrecognized Category '{$rawCells['Category']}'");
         }
 
         $storage = IngredientStorage::fromFrenchLabel($cells['Storage']);
 
         if ($storage === null) {
-            throw new InvalidArgumentException("unrecognized Storage '{$cells['Storage']}' (expected frais/surgelé/sec)");
+            throw new InvalidArgumentException("unrecognized Storage '{$rawCells['Storage']}' (expected frais/surgelé/sec)");
         }
 
         if ($this->normalize($cells['Privacy']) !== 'public') {
             throw new InvalidArgumentException(
-                "unsupported Privacy value '{$cells['Privacy']}' — this command only imports public rows (the source file has no owner column to attribute a private row to)"
+                "unsupported Privacy value '{$rawCells['Privacy']}' — this command only imports public rows (the source file has no owner column to attribute a private row to)"
             );
         }
 

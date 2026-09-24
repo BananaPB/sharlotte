@@ -15,7 +15,7 @@ enum IngredientStorage: string
 {
     case Fresh = 'fresh';
     case Frozen = 'frozen';
-    case Dry = 'dry';
+    case Ambient = 'ambient';
 
     /**
      * Resolve the French label used in the source spreadsheet ("frais"/"surgelé"/"sec")
@@ -27,7 +27,7 @@ enum IngredientStorage: string
         return match (self::normalize($label)) {
             'frais' => self::Fresh,
             'surgele' => self::Frozen,
-            'sec' => self::Dry,
+            'sec' => self::Ambient,
             default => null,
         };
     }

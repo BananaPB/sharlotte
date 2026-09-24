@@ -174,7 +174,7 @@ test('tracks allergens it definitely contains, separately from ones it may only 
 test('buildSlug disambiguates the same name by storage state', function () {
     expect(Ingredient::buildSlug('Carotte', IngredientStorage::Fresh, null))->toBe('carotte-fresh')
         ->and(Ingredient::buildSlug('Carotte', IngredientStorage::Frozen, null))->toBe('carotte-frozen')
-        ->and(Ingredient::buildSlug('Carotte', IngredientStorage::Dry, null))->toBe('carotte-dry');
+        ->and(Ingredient::buildSlug('Carotte', IngredientStorage::Ambient, null))->toBe('carotte-ambient');
 });
 
 test('buildSlug disambiguates a public ingredient from the same name owned privately', function () {

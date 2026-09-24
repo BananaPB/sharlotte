@@ -98,8 +98,8 @@ describe('with categories and allergens seeded', function () {
             ->and($cheese->allergenTraces()->count())->toBe(0)
             ->and((string) $cheese->fats)->toBe('3.00');
 
-        $flour = Ingredient::query()->where('slug', 'farine-de-ble-dry')->firstOrFail();
-        expect($flour->storage)->toBe(IngredientStorage::Dry)
+        $flour = Ingredient::query()->where('slug', 'farine-de-ble-ambient')->firstOrFail();
+        expect($flour->storage)->toBe(IngredientStorage::Ambient)
             ->and($flour->allergens()->pluck('code')->all())->toBe(['gluten'])
             ->and($flour->allergenTraces()->pluck('code')->sort()->values()->all())->toBe(['lupin', 'soy']);
     });
@@ -223,6 +223,63 @@ describe('with categories and allergens seeded', function () {
     test('fails cleanly when the CSV file does not exist', function () {
         $this->artisan('ingredients:import', ['path' => sys_get_temp_dir().'/does-not-exist-ingredients.csv'])
             ->assertExitCode(1);
+
+        expect(Ingredient::query()->count())->toBe(0);
+    });
+
+    test('imports a CSV whose header row is lowercase, same as a properly-cased one', function () {
+        // Deliberately not reusing makeIngredientsCsv()/IMPORT_CSV_HEADER, which always emits
+        // the canonically-cased header — this exercises the real user export's lowercase one.
+        $lowercaseHeader = [
+            'category', 'name', 'storage', 'privacy', 'calories', 'fats', 'saturates',
+            'carbohydrates', 'sugars', 'fibers', 'proteins', 'salt', 'water',
+            'allergenscontained', 'allergenstraces',
+        ];
+
+        $content = implode("\n", [
+            importCsvLine($lowercaseHeader),
+            importCsvLine(['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', '']),
+        ])."\n";
+
+        $path = tempnam(sys_get_temp_dir(), 'ingredients_import_test_');
+        file_put_contents($path, $content);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 1')
+            ->expectsOutputToContain('No errors.')
+            ->assertExitCode(0);
+
+        $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
+        expect($apple->calories)->toBe(52)
+            ->and($apple->storage)->toBe(IngredientStorage::Fresh);
+    });
+
+    test('treats the literal text "null" in optional cells as blank, not as an error', function () {
+        $path = makeIngredientsCsv([
+            ['Fruits', 'Pomme sans eau', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', 'null', 'null', 'null'],
+        ]);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 1')
+            ->expectsOutputToContain('No errors.')
+            ->assertExitCode(0);
+
+        $apple = Ingredient::query()->where('slug', 'pomme-sans-eau-fresh')->firstOrFail();
+        expect($apple->water)->toBeNull()
+            ->and($apple->allergens()->count())->toBe(0)
+            ->and($apple->allergenTraces()->count())->toBe(0);
+    });
+
+    test('still rejects a literal "null" in Category, quoting the actual raw value in the error', function () {
+        $path = makeIngredientsCsv([
+            ['null', 'Mystère', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+        ]);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 0')
+            ->expectsOutputToContain('1 row(s) skipped')
+            ->expectsOutputToContain("unrecognized Category 'null'")
+            ->assertExitCode(0);
 
         expect(Ingredient::query()->count())->toBe(0);
     });
