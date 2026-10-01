@@ -6,9 +6,11 @@ namespace App\Models;
 
 use App\Enums\IngredientPrivacy;
 use App\Enums\IngredientStorage;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -43,13 +45,16 @@ use Illuminate\Support\Str;
  * @property Carbon|null $updated_at
  * @property-read IngredientCategory $category
  * @property-read User|null $owner
+ * @property-read Collection<int, Unit> $units
  */
 class Ingredient extends Model
 {
+    // `owner_id` is deliberately not fillable: ownership is always set explicitly from the
+    // authenticated user ($ingredient->owner()->associate($user)), never mass-assigned, so
+    // request input can never choose the owner (and, through it, the privacy).
     /** @var list<string> */
     protected $fillable = [
         'category_id',
-        'owner_id',
         'name',
         'slug',
         'storage',
@@ -139,6 +144,17 @@ class Ingredient extends Model
     public function allergenTraces(): BelongsToMany
     {
         return $this->belongsToMany(Allergen::class, 'ingredient_allergen_trace')->withTimestamps();
+    }
+
+    /**
+     * Gram weights for this ingredient's formats (e.g. "1 tranche = 40 g"), public and
+     * private alike — filter with Unit::scopeVisibleTo() when showing them to a user.
+     *
+     * @return HasMany<Unit, $this>
+     */
+    public function units(): HasMany
+    {
+        return $this->hasMany(Unit::class);
     }
 
     /**

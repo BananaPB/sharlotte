@@ -303,16 +303,18 @@ class ImportIngredientsCommand extends Command
         $seenSlugs[$slug] = $rowNumber;
 
         DB::transaction(function () use ($category, $name, $slug, $storage, $calories, $nutrition, $contains, $traces): void {
-            $ingredient = Ingredient::query()->updateOrCreate(
-                ['slug' => $slug],
-                array_merge([
-                    'category_id' => $category->id,
-                    'owner_id' => null,
-                    'name' => $name,
-                    'storage' => $storage,
-                    'calories' => $calories,
-                ], $nutrition)
-            );
+            // Upsert by slug. Spelled out (firstOrNew + fill + save) rather than
+            // updateOrCreate() because owner_id is not mass-assignable: it is set explicitly
+            // to null so every imported row, created or updated, is (and stays) public.
+            $ingredient = Ingredient::query()->firstOrNew(['slug' => $slug]);
+            $ingredient->fill(array_merge([
+                'category_id' => $category->id,
+                'name' => $name,
+                'storage' => $storage,
+                'calories' => $calories,
+            ], $nutrition));
+            $ingredient->owner_id = null;
+            $ingredient->save();
 
             $ingredient->allergens()->sync($contains);
             $ingredient->allergenTraces()->sync($traces);

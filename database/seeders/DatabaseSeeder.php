@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AllergenSeeder::class,
             IngredientCategorySeeder::class,
+            FormatSeeder::class,
         ]);
 
         // User::factory(10)->create();

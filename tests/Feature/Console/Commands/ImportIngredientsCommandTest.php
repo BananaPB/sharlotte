@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Enums\IngredientPrivacy;
 use App\Enums\IngredientStorage;
 use App\Models\Allergen;
 use App\Models\Ingredient;
+use App\Models\User;
 use Database\Seeders\AllergenSeeder;
 use Database\Seeders\IngredientCategorySeeder;
 
@@ -159,7 +161,8 @@ describe('with categories and allergens seeded', function () {
         Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail()->update(['to_review' => true]);
 
         // Same slug (matching name+storage), different nutrition values, so the row genuinely
-        // goes through updateOrCreate()'s "update" branch rather than being skipped entirely.
+        // goes through the import's "update existing row" branch rather than being skipped
+        // entirely.
         $secondPath = makeIngredientsCsv([
             ['Fruits', 'Pomme', 'frais', 'public', '55', '0.20', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
         ]);
@@ -168,6 +171,28 @@ describe('with categories and allergens seeded', function () {
         $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
         expect($apple->calories)->toBe('55.00')
             ->and($apple->to_review)->toBeTrue();
+    });
+
+    test('re-importing an ingredient keeps it public even if it had been given an owner', function () {
+        $path = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+        ]);
+        $this->artisan('ingredients:import', ['path' => $path])->assertExitCode(0);
+
+        // Simulates an imported (public) row that somehow ended up owned. The import's explicit
+        // `owner_id = null` must put it back to public: owner_id is not mass-assignable, so
+        // fill() alone would leave it untouched.
+        $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
+        $apple->owner_id = User::factory()->create()->id;
+        $apple->save();
+        expect($apple->fresh()->privacy)->toBe(IngredientPrivacy::Private);
+
+        $this->artisan('ingredients:import', ['path' => $path])->assertExitCode(0);
+
+        $reloaded = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
+        expect(Ingredient::query()->count())->toBe(1)
+            ->and($reloaded->owner_id)->toBeNull()
+            ->and($reloaded->privacy)->toBe(IngredientPrivacy::Public);
     });
 
     test('skips a row with an unrecognized storage value without aborting the rest of the import', function () {
