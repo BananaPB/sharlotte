@@ -49,10 +49,12 @@ use Illuminate\Support\Str;
  */
 class Ingredient extends Model
 {
+    // `owner_id` is deliberately not fillable: ownership is always set explicitly from the
+    // authenticated user ($ingredient->owner()->associate($user)), never mass-assigned, so
+    // request input can never choose the owner (and, through it, the privacy).
     /** @var list<string> */
     protected $fillable = [
         'category_id',
-        'owner_id',
         'name',
         'slug',
         'storage',

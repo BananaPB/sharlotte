@@ -31,8 +31,11 @@ use LogicException;
  */
 class Unit extends Model
 {
+    // `owner_id` is deliberately not fillable: ownership is always set explicitly from the
+    // authenticated user ($unit->owner()->associate($user)), never mass-assigned, so request
+    // input can never choose the owner.
     /** @var list<string> */
-    protected $fillable = ['ingredient_id', 'format_id', 'owner_id', 'grams'];
+    protected $fillable = ['ingredient_id', 'format_id', 'grams'];
 
     /**
      * @return array<string, string>
@@ -65,7 +68,7 @@ class Unit extends Model
                 return;
             }
 
-            // Compared as ints: owner_id may arrive as a numeric string from request input.
+            // Compared as ints: either side may come back as a numeric string depending on the DB driver.
             if ($unit->owner_id === null || (int) $unit->owner_id !== (int) $ingredientOwnerId) {
                 throw new LogicException(sprintf(
                     'Unit on private ingredient #%d must be owned by that ingredient\'s owner (#%d), got %s.',
