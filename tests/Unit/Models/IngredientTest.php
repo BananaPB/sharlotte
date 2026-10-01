@@ -48,7 +48,6 @@ test('nutrition decimal values round-trip through Postgres without float drift',
 
     $ingredient = Ingredient::query()->create([
         'category_id' => $category->id,
-        'owner_id' => null,
         'name' => 'Float trap ingredient',
         'slug' => 'float-trap-ingredient-fresh',
         'storage' => IngredientStorage::Fresh,
@@ -165,9 +164,43 @@ test('privacy is recomputed, not just set once, when owner_id changes on an exis
     $ingredient = IngredientFactory::new()->create(['owner_id' => null]);
     $user = User::factory()->create();
 
-    $ingredient->update(['owner_id' => $user->id]);
+    // Assigned explicitly: owner_id is not mass-assignable, so update([...]) would drop it.
+    $ingredient->owner_id = $user->id;
+    $ingredient->save();
 
     expect($ingredient->fresh()->privacy)->toBe(IngredientPrivacy::Private);
+});
+
+test('refuses to let mass assignment choose the owner on create', function () {
+    $category = IngredientCategoryFactory::new()->create();
+    $user = User::factory()->create();
+
+    $ingredient = Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
+        'category_id' => $category->id,
+        'owner_id' => $user->id,
+        'name' => 'Sneaky owner on create',
+        'slug' => 'sneaky-owner-on-create-fresh',
+        'storage' => IngredientStorage::Fresh,
+    ]);
+
+    $reloaded = $ingredient->fresh();
+
+    expect($reloaded->owner_id)->toBeNull()
+        ->and($reloaded->privacy)->toBe(IngredientPrivacy::Public);
+});
+
+test('refuses to let mass assignment change the owner of an existing ingredient', function () {
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $ingredient = IngredientFactory::new()->create(['owner_id' => $owner->id]);
+
+    $ingredient->fill(['owner_id' => $stranger->id, 'name' => 'Renamed'])->save();
+
+    $reloaded = $ingredient->fresh();
+
+    expect($reloaded->owner_id)->toBe($owner->id)
+        ->and($reloaded->name)->toBe('Renamed');
 });
 
 test('privacy ignores a manually-set value and derives from owner_id instead', function () {
@@ -180,7 +213,6 @@ test('privacy ignores a manually-set value and derives from owner_id instead', f
     $ingredient = new Ingredient([
         ...ingredientCoreNutrition(),
         'category_id' => $category->id,
-        'owner_id' => null,
         'name' => 'Manually flagged private',
         'slug' => 'manually-flagged-private-fresh',
         'storage' => IngredientStorage::Fresh,

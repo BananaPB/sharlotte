@@ -134,6 +134,34 @@ test('refuses moving a public unit onto a private ingredient', function () {
     expect(fn () => $unit->save())->toThrow(LogicException::class);
 });
 
+test('refuses to let mass assignment choose the owner on create', function () {
+    $user = User::factory()->create();
+    $ingredient = IngredientFactory::new()->create(['owner_id' => null]);
+    $format = FormatFactory::new()->create();
+
+    $unit = Unit::query()->create([
+        'ingredient_id' => $ingredient->id,
+        'format_id' => $format->id,
+        'owner_id' => $user->id,
+        'grams' => 40,
+    ]);
+
+    expect($unit->fresh()->owner_id)->toBeNull();
+});
+
+test('refuses to let mass assignment change the owner of an existing unit', function () {
+    $owner = User::factory()->create();
+    $stranger = User::factory()->create();
+    $unit = UnitFactory::new()->ownedBy($owner)->create();
+
+    $unit->fill(['owner_id' => $stranger->id, 'grams' => 55])->save();
+
+    $reloaded = $unit->fresh();
+
+    expect($reloaded->owner_id)->toBe($owner->id)
+        ->and($reloaded->grams)->toBe('55.00');
+});
+
 // --- privacy and visibility ------------------------------------------------------------
 
 test('is public when it has no owner', function () {
