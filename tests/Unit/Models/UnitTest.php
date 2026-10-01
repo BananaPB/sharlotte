@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Models\Format;
 use App\Models\Ingredient;
+use App\Models\Preparation;
 use App\Models\Unit;
 use App\Models\User;
 use Database\Factories\FormatFactory;
 use Database\Factories\IngredientFactory;
+use Database\Factories\PreparationFactory;
 use Database\Factories\UnitFactory;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -262,4 +264,68 @@ test('belongs to its ingredient, format, and owner', function () {
 
 test('has no owner when public', function () {
     expect(UnitFactory::new()->create()->owner)->toBeNull();
+});
+
+// --- preparation units -----------------------------------------------------------------
+
+test('accepts a unit on a preparation, owned by the preparation\'s owner', function () {
+    $preparation = PreparationFactory::new()->create();
+
+    $unit = UnitFactory::new()->forPreparation($preparation)->create();
+
+    expect($unit->exists)->toBeTrue()
+        ->and($unit->ingredient_id)->toBeNull()
+        ->and($unit->preparation_id)->toBe($preparation->id)
+        ->and($unit->owner_id)->toBe($preparation->owner_id);
+});
+
+test('refuses a public unit on a preparation', function () {
+    $preparation = PreparationFactory::new()->create();
+
+    expect(fn () => UnitFactory::new()->create([
+        'ingredient_id' => null,
+        'preparation_id' => $preparation->id,
+        'owner_id' => null,
+    ]))->toThrow(LogicException::class);
+
+    expect(Unit::query()->count())->toBe(0);
+});
+
+test("refuses another user's unit on a preparation", function () {
+    $preparation = PreparationFactory::new()->create();
+    $stranger = User::factory()->create();
+
+    expect(fn () => UnitFactory::new()->ownedBy($stranger)->create([
+        'ingredient_id' => null,
+        'preparation_id' => $preparation->id,
+    ]))->toThrow(LogicException::class);
+
+    expect(Unit::query()->count())->toBe(0);
+});
+
+test('refuses at the database level a unit weighing both an ingredient and a preparation', function () {
+    $preparation = PreparationFactory::new()->create();
+
+    // Only the exception is asserted: Postgres aborts the transaction after the CHECK error.
+    expect(fn () => UnitFactory::new()->create([
+        'preparation_id' => $preparation->id,
+        'owner_id' => $preparation->owner_id,
+    ]))->toThrow(QueryException::class, 'units_one_component');
+});
+
+test('refuses at the database level a unit weighing nothing', function () {
+    expect(fn () => UnitFactory::new()->create(['ingredient_id' => null, 'preparation_id' => null]))
+        ->toThrow(QueryException::class, 'units_one_component');
+});
+
+test('returns its ingredient or its preparation as its component', function () {
+    $ingredientUnit = UnitFactory::new()->create();
+    $preparationUnit = UnitFactory::new()->forPreparation()->create();
+
+    expect($ingredientUnit->component())->toBeInstanceOf(Ingredient::class)
+        ->and($ingredientUnit->component()->id)->toBe($ingredientUnit->ingredient_id)
+        ->and($preparationUnit->component())->toBeInstanceOf(Preparation::class)
+        ->and($preparationUnit->component()->id)->toBe($preparationUnit->preparation_id)
+        ->and($preparationUnit->preparation->id)->toBe($preparationUnit->preparation_id)
+        ->and($ingredientUnit->preparation)->toBeNull();
 });
