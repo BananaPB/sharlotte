@@ -46,3 +46,4 @@ Guarantee relevant test coverage on the current `git diff`, written in Pest (bac
 
 - Don't modify the business logic in `app/` or `resources/js/` outside of test files.
 - Don't disable a failing test to make it pass.
+- Never kill processes by name (`taskkill /IM php.exe`, `pkill php`, etc.): it also kills the developer's own `php artisan serve`, Herd or queue workers. If a command hangs, stop it by its own PID or report the hang. Run tinker non-interactively (`php artisan tinker --execute=...`) so it can't hang waiting for input.

@@ -63,7 +63,7 @@ Open questions to revisit when Phase 4 actually starts (not urgent before then):
 
 ### Ingredients (Phase 1 — data layer only)
 
-The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2: their schema is decided ([`decisions.md`](decisions.md) entry 8); only its first step, formats & units (below), is built so far. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
+The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2 ([`decisions.md`](decisions.md) entries 8 and 10): formats & units and the preparation/product/recipe-line tables are built (below); the cycle guard and the calculation engine are not yet. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
 
 **Schema**
 
@@ -99,20 +99,54 @@ Rules worth knowing when touching it:
 
 ### Formats & units (Phase 2 step 1 — data layer only)
 
-A unit lets a quantity be entered as "2 tranches" instead of grams: it gives one **format** a weight in grams for one specific component (e.g. "Jambon: 1 tranche = 40 g"). Recipes still reason in grams only; see [`domain-model.md`](domain-model.md) §Units and [`decisions.md`](decisions.md) entry 8. Like Phase 1, no controllers, Policies, FormRequests or pages yet.
+A unit lets a quantity be entered as "2 tranches" instead of grams: it gives one **format** a weight in grams for one specific component — an ingredient or a preparation (e.g. "Jambon: 1 tranche = 40 g", "Pâte sablée maison: 1 pièce = 300 g"). Recipes still reason in grams only; see [`domain-model.md`](domain-model.md) §Units and [`decisions.md`](decisions.md) entry 8. Like Phase 1, no controllers, Policies, FormRequests or pages yet.
 
 **Schema**
 
 - `formats` — closed, read-only lookup list: `code` (unique, stable English identity), `label_fr` and `label_fr_plural`. The plural is an explicit column so display picks singular/plural by quantity and never computes French plurals in code. `FormatSeeder` (called from `DatabaseSeeder`) seeds the 6 rows idempotently via `updateOrCreate` on `code`: `slice`, `bottle`, `box`, `pack`, `piece`, `clove`.
-- `units` — `ingredient_id` (`cascadeOnDelete`: a unit means nothing without its component), `format_id` (`restrictOnDelete`: a format in use can't be removed), `owner_id` (nullable, `cascadeOnDelete`, like private ingredients), all three explicitly indexed. `grams` is `decimal(8,2)` with a DB `CHECK (grams > 0)` (`units_grams_positive`), cast to `decimal:2`. No uniqueness on (ingredient, format, owner): near-duplicates like "tranche fine" / "tranche épaisse" are accepted (entry 8).
-- Ingredient-only for now. Step 2 will make `ingredient_id` nullable and add `preparation_id`, with a CHECK that exactly one of the two is set.
+- `units` — component is `ingredient_id` **or** `preparation_id` (both nullable, both `cascadeOnDelete`: a unit means nothing without its component), exactly one set, enforced by `CHECK (num_nonnulls(ingredient_id, preparation_id) = 1)` (`units_one_component`). Plus `format_id` (`restrictOnDelete`: a format in use can't be removed) and `owner_id` (nullable, `cascadeOnDelete`, like private ingredients). All four FKs explicitly indexed. `grams` is `decimal(8,2)` with a DB `CHECK (grams > 0)` (`units_grams_positive`), cast to `decimal:2`. No uniqueness on (component, format, owner): near-duplicates like "tranche fine" / "tranche épaisse" are accepted (entry 8).
+- `Unit::component()` returns whichever of `ingredient`/`preparation` is set; it is not a relation, so eager-load both before calling it in a loop.
 - `owner_id` null = public unit, supported by the schema but none seeded yet (see [`decisions.md`](decisions.md) Deferred, "Seed common public units"). Privacy is derived from `owner_id` (`Unit::isPublic()`), not stored.
 
 **Ownership rules**
 
-- A `saving()` hook on `Unit` enforces that a unit on a **private** ingredient belongs to that ingredient's owner, and throws a `LogicException` otherwise, since reaching it means a caller skipped validation/authorization. A private unit on a **public** ingredient is allowed. The ingredient's owner is re-queried on each save rather than read from the cached relation.
+- A `saving()` hook on `Unit` enforces that a unit on a **private** component belongs to that component's owner, and throws a `LogicException` otherwise, since reaching it means a caller skipped validation/authorization. A private unit on a **public** ingredient is allowed. Preparations are always private, so a preparation unit always belongs to the preparation's owner. The component's owner is re-queried on each save (one query) rather than read from the cached relation.
 - `Unit::visibleTo($user)` scope = public units + the user's own. `Ingredient::units()` returns all units unfiltered, so apply the scope when showing them to a user.
-- Known limits: the hook doesn't run on bulk/query-builder writes, and it isn't re-checked when an ingredient's owner changes.
+- Known limits: the hook doesn't run on bulk/query-builder writes, and it isn't re-checked when a component's owner changes.
+
+### Preparations, products & recipe lines (Phase 2 step 2 — data layer only)
+
+The composition layer of the `Product > Preparation > Ingredient` tree ([`domain-model.md`](domain-model.md), [`decisions.md`](decisions.md) entry 8). Tables and model rules only: no controllers, Policies, FormRequests or pages, and no calculation yet (step 4).
+
+**Schema**
+
+- `preparations` and `products` — same shape today: `name`, `owner_id` (`NOT NULL`, `cascadeOnDelete`, indexed), timestamps. Always owned, no public tier; `owner_id` is not fillable (set via `owner()->associate($user)`). No yield column: a recipe weighs the sum of its lines in grams, computed rather than stored ([`decisions.md`](decisions.md) entry 10 and its Deferred line on cooking loss). Kept as two tables so products can gain their own fields later (entry 8).
+- `recipe_lines` — one table for both kinds of recipe:
+    - parent: `parent_preparation_id` or `product_id` (`cascadeOnDelete`: deleting a recipe deletes its lines);
+    - component: `ingredient_id` or `component_preparation_id`. There is **no product component column**, so a product can never be used inside a recipe — enforced by the schema itself;
+    - `unit_id` (nullable): `null` means `quantity` is in grams; otherwise `quantity` is a count of that unit (2 × "1 tranche = 40 g");
+    - `position` (unsigned int, not unique, to keep reordering simple; lines are ordered by `position`, then `id`) and `quantity` (`decimal(10,2)`, cast to `decimal:2`);
+    - every FK column explicitly indexed.
+- Named CHECKs on `recipe_lines`: `recipe_lines_one_parent` and `recipe_lines_one_component` (`num_nonnulls(...) = 1`), `recipe_lines_quantity_positive` (`quantity > 0`), `recipe_lines_no_self_reference` (`parent_preparation_id <> component_preparation_id`). Only the **direct** self-reference is blocked; the full, transitive cycle guard is step 3.
+
+**Model rules**
+
+- Lines are created through their parent — `$product->recipeLines()->create([...])` — because the parent columns are not fillable (like `owner_id`, they decide whose data the line is). Component, unit, position and quantity are fillable.
+- A `saving()` hook on `RecipeLine` throws a `LogicException` when:
+    - the ingredient is private and not owned by the recipe's owner;
+    - the component preparation isn't owned by the recipe's owner;
+    - the unit doesn't weigh the line's own component, or is private and not owned by the recipe's owner.
+
+    Shape rules (one parent, one component, quantity, self-reference) are left to the CHECKs. Cost: 2 queries per save, 3 with a unit, all re-queried fresh rather than read from cached relations. Same limits as `Unit`: not run on bulk/query-builder writes, not re-checked if an owner changes later.
+- `App\Contracts\HasRecipe` (one method, `recipeLines()`), implemented by `Preparation` and `Product`, so the step 4 engine can be written once against recipe lines rather than per parent type.
+- `RecipeLine::parent()` and `component()` return whichever side is set; they are not relations, so eager-load `parentPreparation`/`product` and `ingredient`/`componentPreparation` before calling them in a loop.
+- `Preparation::usedInLines()` lists the lines that use a preparation as a component.
+
+**In-use protection and account deletion** ([`decisions.md`](decisions.md) entry 11)
+
+- The component and unit FKs on `recipe_lines` (`ingredient_id`, `component_preparation_id`, `unit_id`) are `NO ACTION`: deleting an ingredient, preparation or unit that some line uses fails at the database level.
+- Account deletion: `User` has a `deleting` hook that first deletes, in one query, every recipe line whose parent belongs to that user; the DB cascade then removes their preparations, products, units and private ingredients. `User::delete()` wraps the whole thing in a transaction.
+- Consequence: users must be deleted **one at a time through the model** (`$user->delete()`). A bulk `User::query()->delete()` skips the hook and fails on the foreign keys.
 
 ### Data storage
 
