@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use Throwable;
 
 /**
@@ -279,16 +280,18 @@ class ImportIngredientsCommand extends Command
 
         // The seven core values are mandatory (docs/decisions.md entry 9): a blank cell
         // rejects the row. Fibers and Water stay optional — blank means "unknown" (null).
-        $calories = $this->parseCalories($this->requireValue($cells, $rawCells, 'Calories'));
+        $required = fn (string $field): string => $this->requireValue($cells, $rawCells, $field);
+
+        $calories = $this->parseCalories($required('Calories'));
 
         $nutrition = [
-            'fats' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Fats'), 'Fats'),
-            'saturates' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Saturates'), 'Saturates'),
-            'carbohydrates' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Carbohydrates'), 'Carbohydrates'),
-            'sugars' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Sugars'), 'Sugars'),
+            'fats' => $this->parseRequiredGrams($required('Fats'), 'Fats'),
+            'saturates' => $this->parseRequiredGrams($required('Saturates'), 'Saturates'),
+            'carbohydrates' => $this->parseRequiredGrams($required('Carbohydrates'), 'Carbohydrates'),
+            'sugars' => $this->parseRequiredGrams($required('Sugars'), 'Sugars'),
             'fibers' => $this->parseGrams($cells['Fibers'], 'Fibers'),
-            'proteins' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Proteins'), 'Proteins'),
-            'salt' => $this->parseGrams($this->requireValue($cells, $rawCells, 'Salt'), 'Salt'),
+            'proteins' => $this->parseRequiredGrams($required('Proteins'), 'Proteins'),
+            'salt' => $this->parseRequiredGrams($required('Salt'), 'Salt'),
             'water' => $this->parseGrams($cells['Water'], 'Water'),
         ];
 
@@ -343,12 +346,13 @@ class ImportIngredientsCommand extends Command
      * Calories are kept as an exact 2-decimal value, never rounded to an integer: rounding
      * before summing compounds across a recipe (docs/decisions.md entry 9).
      */
-    private function parseCalories(string $raw): ?float
+    private function parseCalories(string $raw): float
     {
         $value = $this->parseDecimal($raw, 'Calories');
 
         if ($value === null) {
-            return null;
+            // Unreachable by construction: requireValue() already rejected a blank cell.
+            throw new LogicException('Calories reached parseCalories() blank despite requireValue()');
         }
 
         if ($value < 0 || $value > self::MAX_CALORIES) {
@@ -368,6 +372,22 @@ class ImportIngredientsCommand extends Command
 
         if ($value < 0 || $value > self::MAX_GRAMS_PER_100G) {
             throw new InvalidArgumentException(sprintf('%s out of the expected 0-%sg/100g range: %s', $field, self::MAX_GRAMS_PER_100G, $value));
+        }
+
+        return $value;
+    }
+
+    /**
+     * Same as parseGrams(), for the mandatory core gram fields: the input has already been
+     * through requireValue(), so the result is never null.
+     */
+    private function parseRequiredGrams(string $raw, string $field): float
+    {
+        $value = $this->parseGrams($raw, $field);
+
+        if ($value === null) {
+            // Unreachable by construction: requireValue() already rejected a blank cell.
+            throw new LogicException("{$field} reached parseRequiredGrams() blank despite requireValue()");
         }
 
         return $value;
