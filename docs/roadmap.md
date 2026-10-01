@@ -42,6 +42,6 @@ Schema choices are recorded in [`decisions.md`](decisions.md) entries 8 and 9. D
 
 ## Current state
 
-Repository initialized and pushed to GitHub, with the multi-agent Claude Code workflow (`.claude/`), CI (`tests.yml`), and PR review (`ai-pr-review.yml`) in place. No feature work started yet — Phase 1 (ingredient database) is next.
+Phase 1 (ingredient database) is complete: lookups, `Ingredient` model and the `ingredients:import` command are merged, and the importer has been run against the real ~1,937-row dataset. Phase 2 (domain engine) is underway. Step 0 (require core nutrition) is done; step 1 (formats & units) is next.
 
 _(to be kept up to date by the Documentation agent as work progresses — which phase is underway, what's done)_
