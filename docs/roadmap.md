@@ -42,6 +42,6 @@ Schema choices are recorded in [`decisions.md`](decisions.md) entries 8, 9 and 1
 
 ## Current state
 
-Phase 1 (ingredient database) is complete: lookups, `Ingredient` model and the `ingredients:import` command are merged, and the importer has been run against the real ~1,937-row dataset. Phase 2 (domain engine) is underway. Step 0 (require core nutrition) and step 1 (formats & units) are done; step 2 (preparations, products & recipe lines) is next.
+Phase 1 (ingredient database) is complete: lookups, `Ingredient` model and the `ingredients:import` command are merged, and the importer has been run against the real ~1,937-row dataset. Phase 2 (domain engine) is underway. Step 0 (require core nutrition), step 1 (formats & units) and step 2 (preparations, products & recipe lines) are done; step 3 (cycle guard) is next.
 
 _(to be kept up to date by the Documentation agent as work progresses — which phase is underway, what's done)_
