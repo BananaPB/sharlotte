@@ -15,7 +15,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * HasFactory trait (it has no production use for one), so this factory is used directly as
  * `IngredientFactory::new()` rather than `Ingredient::factory()`.
  *
- * Nutrition values default to plain, round numbers — tests that specifically exercise
+ * Gram nutrition values default to plain, round numbers (calories to a random 2-decimal
+ * value, matching its decimal(6,2) column) — tests that specifically exercise
  * decimal-precision round-tripping (the point of docs/decisions.md #5) override these with
  * explicit float-drift-prone values rather than relying on whatever the factory randomizes.
  *
@@ -49,7 +50,9 @@ class IngredientFactory extends Factory
             'name' => $name,
             'slug' => Ingredient::buildSlug($name, $storage, null),
             'storage' => $storage,
-            'calories' => fake()->numberBetween(0, 900),
+            // Core nutrition values are NOT NULL (docs/decisions.md entry 9), so always set;
+            // calories is a decimal column, hence a 2-decimal float rather than an int.
+            'calories' => fake()->randomFloat(2, 0, 900),
             'fats' => fake()->numberBetween(0, 100),
             'saturates' => fake()->numberBetween(0, 100),
             'carbohydrates' => fake()->numberBetween(0, 100),

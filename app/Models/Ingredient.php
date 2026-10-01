@@ -17,8 +17,10 @@ use Illuminate\Support\Str;
  * Product > Preparation > Ingredient tree described in docs/domain-model.md. Carries its
  * own nutrition (per 100g) and allergens directly.
  *
- * Nutrition columns are genuinely nullable: null means "unknown data point", which for
- * `water` in particular is different from 0 ("measured at zero grams").
+ * The seven core nutrition values (calories, fats, saturates, carbohydrates, sugars,
+ * proteins, salt) are mandatory (docs/decisions.md entry 9). `fibers` and `water` stay
+ * nullable: null means "unknown data point", which is different from 0 ("measured at zero
+ * grams").
  *
  * @property int $id
  * @property int $category_id
@@ -27,14 +29,14 @@ use Illuminate\Support\Str;
  * @property string $slug
  * @property IngredientStorage $storage
  * @property IngredientPrivacy $privacy
- * @property int|null $calories
- * @property string|null $fats
- * @property string|null $saturates
- * @property string|null $carbohydrates
- * @property string|null $sugars
+ * @property string $calories
+ * @property string $fats
+ * @property string $saturates
+ * @property string $carbohydrates
+ * @property string $sugars
  * @property string|null $fibers
- * @property string|null $proteins
- * @property string|null $salt
+ * @property string $proteins
+ * @property string $salt
  * @property string|null $water
  * @property bool $to_review
  * @property Carbon|null $created_at
@@ -71,9 +73,9 @@ class Ingredient extends Model
         return [
             'storage' => IngredientStorage::class,
             'privacy' => IngredientPrivacy::class,
-            'calories' => 'integer',
             // decimal casts return strings, not floats: nutrition math needs exact decimal
             // arithmetic (see docs/decisions.md #5), not float rounding error.
+            'calories' => 'decimal:2',
             'fats' => 'decimal:2',
             'saturates' => 'decimal:2',
             'carbohydrates' => 'decimal:2',
