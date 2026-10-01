@@ -19,13 +19,13 @@ The B2B SaaS is not in scope for this repo. Do not anticipate its needs (pricing
 
 ### Phase 2 — Domain engine
 
-Schema choices are recorded in [`decisions.md`](decisions.md) entries 8 and 9. Data layer and engine only — no controllers or pages (Phase 3). One `/feature` per step, in order:
+Schema choices are recorded in [`decisions.md`](decisions.md) entries 8, 9 and 10. Data layer and engine only — no controllers or pages (Phase 3). One `/feature` per step, in order:
 
 0. **Require core nutrition** — `calories`, `fats`, `saturates`, `carbohydrates`, `sugars`, `proteins`, `salt` become `NOT NULL` (`fibers`, `water` stay nullable); `calories` becomes `decimal(6,2)` and the import stops rounding it; the import rejects rows missing a core value; then re-run `ingredients:import` to restore the 734 decimal calorie values lost to rounding.
 1. **Formats & units** — seeded, closed `formats` list with explicit singular and plural labels (tranche, bouteille, boîte, paquet, pièce, gousse); `units` table (component, decimal grams, format, nullable `owner_id` = public). Public units are supported but not seeded yet ([`decisions.md`](decisions.md), deferred 2026-10-01).
-2. **Preparations, products & recipe lines** — `preparations` (with nullable `yield_grams`, defaulting to the sum of lines) and `products` tables; shared `recipe_lines` table (`position`, decimal `quantity`, nullable `unit_id` = grams) with explicit parent/component foreign keys and CHECK constraints; a line's unit must belong to its component.
+2. **Preparations, products & recipe lines** — `preparations` and `products` tables, both always owned by a user (no yield column — a recipe's weight is the sum of its lines, [`decisions.md`](decisions.md) entry 10); units extended to preparations; shared `recipe_lines` table (`position`, decimal `quantity`, nullable `unit_id` = grams) with explicit parent/component foreign keys and CHECK constraints; a line's unit must belong to its component.
 3. **Cycle guard** — refuse to save a recipe line that would make a preparation contain itself, directly or transitively.
-4. **Calculation engine** — unroll to grams, flatten the recipe, aggregate nutrition (scaled by yield), union allergens and traces. Exhaustive Pest suite as top priority — it's the most critical piece of the project. `fibers`/`water` are reported unknown for the whole tree if any leaf lacks them ([`decisions.md`](decisions.md) entry 9).
+4. **Calculation engine** — unroll to grams, flatten the recipe, aggregate nutrition (a preparation used in a recipe is scaled by the sum of its own lines), union allergens and traces. Exhaustive Pest suite as top priority — it's the most critical piece of the project. `fibers`/`water` are reported unknown for the whole tree if any leaf lacks them ([`decisions.md`](decisions.md) entry 9).
 
 ### Phase 3 — "Individual" app
 

@@ -24,11 +24,36 @@ Real decisions, deliberately not made yet, each with the event that should bring
 - **Cache ingredient data on the B2B side to survive sharlotte outages** — when Phase 4 starts. _(deferred 2026-09-21)_
 - **Translate ingredient/category data and add multi-locale support** — when an actual non-French-speaking user or use case appears (e.g. publishing the CC-BY dataset in English). _(deferred 2026-09-22)_
 - **Seed common public units (e.g. "1 tranche de jambon = 40 g")** — public units (`owner_id` null) are supported by the schema per entry 8, but none are seeded yet. Seed them when Phase 3's unit picker exists and users would otherwise each recreate the same common units. _(deferred 2026-10-01)_
+- **Cooking loss (yield) on preparations and products** — ignored for now (entry 10). Add it when the project owner has measured standard loss ratios per kind of cooking to suggest to users, so nobody has to reweigh a finished recipe. _(deferred 2026-10-01)_
 - **"Family"/team-shared ingredient visibility (brand accounts sharing ingredients across shops)** — not unless a B2B SaaS customer (Phase 4, separate repo) needs it there; this repo stays one-account-one-person per `vision.md`. _(deferred 2026-09-22)_
 
 ---
 
 _Entries 1–4 were recorded retroactively on 2026-09-21 from [`vision.md`](vision.md), [`roadmap.md`](roadmap.md), and [`architecture.md`](architecture.md). They describe choices already made at repo initialization, not new ones._
+
+## 11. In-use components are protected by non-deferrable foreign keys; user deletion clears recipe lines first
+
+**2026-10-01 · Accepted · applies to Phase 2**
+
+Entry 8 wants a preparation, ingredient or unit that a recipe line uses to be undeletable. Implemented as plain `NO ACTION` foreign keys on `recipe_lines` (`ingredient_id`, `component_preparation_id`, `unit_id`; the two preparation columns are named `parent_preparation_id` / `component_preparation_id` rather than entry 8's shorthand, since one table can't have two `preparation_id` columns). Postgres checks a non-deferrable foreign key at the end of each *cascaded* statement, not of the whole user deletion, so deleting a user whose product uses their own preparation or unit failed: the cascade reached `units`/`preparations` while the product's lines still pointed at them. So: `User` has a `deleting` hook that first deletes every recipe line whose parent belongs to that user, and `User::delete()` runs inside a transaction so a failed deletion can't leave those lines half-removed.
+
+**Rejected**: `DEFERRABLE INITIALLY DEFERRED` foreign keys (purely database-side, but "can't delete a used preparation" would only fail at commit — the Pest suite runs inside transactions that never commit, so the protection would become untestable); `RESTRICT` (same per-statement failure as `NO ACTION` here, with no upside); `SET NULL` on `unit_id` (would silently turn "2 tranches" into "2 g").
+
+**Costs**: account deletion now depends on an Eloquent model event — a bulk `User::query()->delete()` skips it and fails on the foreign keys, so users must always be deleted one at a time through the model. The hook is safe only because the `RecipeLine` saving rules guarantee nobody else's recipe can reference a user's private rows; a bulk write that bypasses those rules could make another user's line block an account deletion. One extra `DELETE` per account deletion.
+
+**Revisit when**: a second kind of owned data gains in-use protection and the hook starts growing, or account deletion needs to happen in bulk.
+
+## 10. A recipe weighs the sum of its lines — no yield/cooking loss for now (supersedes the `yield_grams` part of entry 8)
+
+**2026-10-01 · Accepted · applies to Phase 2**
+
+Entry 8 gave preparations a nullable `yield_grams` (cooked weight after evaporation), and the question came up of giving products one too, since a baked tart also loses water. The project owner ruled it out for now: asking users to reweigh every finished recipe is real friction, the loss is negligible at this stage, and the better long-term answer is to suggest standard loss ratios he will measure himself. So: no yield column on `preparations` or `products`. A recipe's weight is the sum of its lines in grams, computed rather than stored, and it is the one figure used to scale a preparation inside another recipe (200 g of a pastry cream whose lines sum to 1,000 g contributes 20% of its totals) and to express nutrition per 100 g. Both preparations and products are always owned by a user (`owner_id` NOT NULL); unlike ingredients and units, there is no public tier.
+
+**Rejected**: `yield_grams` on preparations (entry 8's original call) and on products — correct in principle, but a weighing step most users would skip or guess, with no default better than the sum of lines anyway; public preparations — no current need, and relaxing `owner_id` later is a non-destructive migration.
+
+**Costs**: per-100 g nutrition is **understated** for anything that loses water while cooking — a reduction that loses 30% of its weight shows values about 30% too low per 100 g. Totals per recipe (and per portion, once portions exist) stay correct, because only water is lost. When yield is added later, every computed per-100 g figure for cooked recipes will change, and anything a user exported or printed before then will disagree with the new numbers.
+
+**Revisit when**: the Deferred line "Cooking loss (yield)" triggers — standard loss ratios exist to suggest.
 
 ## 9. Core nutrition values are mandatory; calories stored as exact decimals
 
