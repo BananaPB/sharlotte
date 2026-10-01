@@ -63,24 +63,37 @@ Open questions to revisit when Phase 4 actually starts (not urgent before then):
 
 ### Ingredients (Phase 1 — data layer only)
 
-The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2, not yet built. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
+The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2: their schema is decided ([`decisions.md`](decisions.md) entry 8) but not yet built. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
 
 **Schema**
 
-- `ingredient_categories` and `allergens` — small lookup tables (`code` is the stable identity to join/compare on; `label_fr` and `description_fr` are both display-only, both translatable later per the same deferred-i18n reasoning — see [`decisions.md`](decisions.md), deferred 2026-09-22). `IngredientCategorySeeder` seeds all 20 of the source spreadsheet's real-world categories, sourced from an old export of the project owner's previous version of this app. The `description_fr` column is non-nullable with no default, so adding it required `migrate:fresh` on any already-seeded dev database — noted here since it'll matter again if a similar column is added after production data exists.
+- `ingredient_categories` and `allergens` — small lookup tables (`code` is the stable identity to join/compare on in application code; `label_fr` and `description_fr` are display text, translatable later per the same deferred-i18n reasoning — see [`decisions.md`](decisions.md), deferred 2026-09-22). `IngredientCategorySeeder` seeds all 20 of the source spreadsheet's real-world categories, sourced from an old export of the project owner's previous version of this app. One exception to "display-only": the CSV import resolves categories and allergens by their (normalized) `label_fr`, because that is what the spreadsheet contains — so seeded labels must match the spreadsheet's spelling exactly, quirks included (e.g. `Appéritifs & biscuits`, `Sésame` rather than the EU's "Graines de sésame"). Correcting a label's spelling breaks matching unless the source data changes with it. The `description_fr` column is non-nullable with no default, so adding it required `migrate:fresh` on any already-seeded dev database — noted here since it'll matter again if a similar column is added after production data exists.
 - `ingredients` — belongs to `IngredientCategory` (`category_id`, `restrictOnDelete`: a category in use can't be deleted out from under its ingredients) and optionally to `User` (`owner_id`, nullable, `cascadeOnDelete`: a private ingredient has no meaning once its owner is gone). Both foreign keys are explicitly indexed — Postgres, unlike MySQL/InnoDB, does not auto-index FK columns.
-- Nutrition columns (`calories`, `fats`, `saturates`, `carbohydrates`, `sugars`, `fibers`, `proteins`, `salt`, `water`) are nullable `decimal(5,2)` (`calories` is an integer). Nullable is deliberate: `null` means "unknown data point," distinct from `0` (e.g. `water` measured at zero grams) — see [`domain-model.md`](domain-model.md). The model casts these to `decimal:2` (returned as strings, not floats) so nutrition arithmetic in Phase 2 stays exact, per [`decisions.md`](decisions.md) entry 5.
+- Nutrition columns (per 100g) split in two groups, per [`decisions.md`](decisions.md) entry 9:
+    - the seven core values — `calories` (`decimal(6,2)`), `fats`, `saturates`, `carbohydrates`, `sugars`, `proteins`, `salt` (`decimal(5,2)`) — are `NOT NULL`;
+    - `fibers` and `water` (`decimal(5,2)`) stay nullable: `null` means "unknown data point," distinct from `0` (e.g. `water` measured at zero grams) — see [`domain-model.md`](domain-model.md).
+
+    The model casts all nine to `decimal:2` (returned as strings, not floats) so nutrition arithmetic in Phase 2 stays exact, per [`decisions.md`](decisions.md) entry 5. Calories are stored unrounded; rounding belongs to display only.
+
+- `to_review` — boolean, default `false`, indexed. A manual data-quality flag the project owner sets on ingredients to come back to (implausible values, macros that don't add up, naming inconsistencies). It is not touched by the import, carries no workflow, and has no timestamp of its own (`updated_at` suffices).
 - Allergens are modeled as **two** separate `belongsToMany` pivots — `ingredient_allergen` (definitely contains) and `ingredient_allergen_trace` (may contain traces of), exposed as `Ingredient::allergens()` / `allergenTraces()` — rather than one pivot with a `type` column, for query simplicity (each relation is a plain join, no extra `WHERE` on a type discriminator).
 
 **Identity: storage, privacy, slug**
 
-- `App\Enums\IngredientStorage` (`fresh`/`frozen`/`dry`) is part of an ingredient's identity, not a mutable attribute — a frozen and a fresh version of "the same" food have different nutrition and can't substitute for each other in a recipe.
+- `App\Enums\IngredientStorage` (`fresh`/`frozen`/`ambient` — `ambient` meaning stored at room temperature, mapped from the spreadsheet's "sec") is part of an ingredient's identity, not a mutable attribute — a frozen and a fresh version of "the same" food have different nutrition and can't substitute for each other in a recipe.
 - `App\Enums\IngredientPrivacy` (`public`/`private`) is derived automatically from `owner_id`'s nullability by a model `saving()` hook, and is never independently settable — this keeps the two columns from drifting apart while still giving `privacy` its own stored, queryable column (the source spreadsheet and the domain model both treat it as first-class). Deliberately two-valued only; see [`decisions.md`](decisions.md)'s Deferred list (2026-09-22) for the rejected "family"/team-shared tier.
 - `Ingredient::slug` is unique and built from `name + storage + owner_id` (`Ingredient::buildSlug()`), because the same name can legitimately exist more than once — different storage state, or the same name owned by different users.
 
 **Import**
 
 `App\Console\Commands\ImportIngredientsCommand` (`ingredients:import {path}`) upserts the public ingredient dataset (~1,937 rows) from a UTF-8 CSV export of the source spreadsheet, keyed on the computed slug — safe to re-run as the spreadsheet is corrected. It reads the file with PHP's built-in `fgetcsv()` (no `.xlsx`-parsing dependency; the developer exports to CSV himself) and validates rather than assumes clean input: unrecognized category/allergen/storage codes, malformed or out-of-range numeric values, duplicate slugs, and French-locale CSV quirks (comma-decimals, semicolon-delimiters, a BOM) are all reported per-row without aborting the rest of the run.
+
+Rules worth knowing when touching it:
+
+- Header names are matched case-insensitively (the real export uses lowercase headers) and rewritten to their canonical casing, so the rest of the command only ever sees one spelling.
+- A cell containing the literal text `null` is treated as blank. Error messages still quote the raw cell, so the reported value matches what's actually in the file.
+- A row missing any of the seven core nutrition values is rejected; blank `Fibers`/`Water` import as `null`. Calories are stored as parsed, never rounded ([`decisions.md`](decisions.md) entry 9).
+- The upsert never writes `to_review`, so re-importing a corrected spreadsheet keeps manual review flags.
 
 ### Data storage
 
