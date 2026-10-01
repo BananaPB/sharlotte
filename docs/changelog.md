@@ -10,6 +10,7 @@
 - **Ingredients are sorted into 20 categories** (fruits, vegetables, meat, fish, dairy, spices and herbs, drinks, meat and cheese alternatives, and more), each with a short description of what belongs in it.
 - **Fresh, frozen and room-temperature versions of the same food are kept apart**, because their nutrition values differ and one can't simply replace the other in a recipe.
 - **Ingredients can be flagged for review.** If an ingredient's data looks doubtful (odd values, a confusing name), it can be marked so it gets checked and corrected later.
+- **Groundwork for everyday quantities.** Sharlotte can now remember how much one slice, bottle, box, pack, piece or clove of a given ingredient weighs, so you'll later be able to write "2 slices of ham" in a recipe instead of weighing everything in grams. You can't add these yourself yet. That will come with the recipe screens.
 
 ### Improvements
 
