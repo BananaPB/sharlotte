@@ -6,10 +6,12 @@ use App\Enums\IngredientPrivacy;
 use App\Enums\IngredientStorage;
 use App\Models\Ingredient;
 use App\Models\IngredientCategory;
+use App\Models\Unit;
 use App\Models\User;
 use Database\Factories\AllergenFactory;
 use Database\Factories\IngredientCategoryFactory;
 use Database\Factories\IngredientFactory;
+use Database\Factories\UnitFactory;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -209,6 +211,19 @@ test('has no owner when public', function () {
     $ingredient = IngredientFactory::new()->create(['owner_id' => null]);
 
     expect($ingredient->owner)->toBeNull();
+});
+
+test('has its units, public and private alike', function () {
+    $user = User::factory()->create();
+    $ingredient = IngredientFactory::new()->create();
+    $public = UnitFactory::new()->create(['ingredient_id' => $ingredient->id]);
+    $private = UnitFactory::new()->ownedBy($user)->create(['ingredient_id' => $ingredient->id]);
+    UnitFactory::new()->create();
+
+    expect($ingredient->units)->toHaveCount(2)
+        ->each->toBeInstanceOf(Unit::class);
+    expect($ingredient->units->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$public->id, $private->id])->sort()->values()->all());
 });
 
 test('tracks allergens it definitely contains, separately from ones it may only trace', function () {
