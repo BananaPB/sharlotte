@@ -19,6 +19,25 @@ use Tests\TestCase;
 // here — done locally rather than widening Pest.php's global config for every Unit test.
 uses(TestCase::class, RefreshDatabase::class);
 
+/**
+ * The seven core nutrition values are NOT NULL (docs/decisions.md entry 9), so any test
+ * creating an ingredient by hand (rather than through IngredientFactory) must supply them.
+ *
+ * @return array<string, float|int>
+ */
+function ingredientCoreNutrition(): array
+{
+    return [
+        'calories' => 52,
+        'fats' => 0.17,
+        'saturates' => 0.03,
+        'carbohydrates' => 13.81,
+        'sugars' => 10.39,
+        'proteins' => 0.26,
+        'salt' => 0,
+    ];
+}
+
 // This is the actual regression test docs/decisions.md #5 exists to enable: prove nutrition
 // decimals survive a real Postgres round-trip byte-exact, with no float drift. SQLite's type
 // affinity would silently do float math on these columns instead of exact NUMERIC arithmetic.
@@ -64,6 +83,7 @@ test('a classic float-precision-loss value round-trips exactly', function () {
     // double precision, not 0.3. If this column were float/double storage (as SQLite's type
     // affinity would silently substitute), that drift could surface here.
     $ingredient = Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
         'category_id' => $category->id,
         'name' => '0.1 plus 0.2 trap',
         'slug' => 'zero-one-plus-zero-two-trap-fresh',
@@ -74,22 +94,55 @@ test('a classic float-precision-loss value round-trips exactly', function () {
     expect((string) Ingredient::query()->findOrFail($ingredient->id)->fats)->toBe('0.30');
 });
 
-test('nutrition fields are genuinely nullable, distinct from zero', function () {
+test('fibers and water are genuinely nullable, distinct from zero', function () {
     $category = IngredientCategoryFactory::new()->create();
 
-    $ingredient = Ingredient::query()->create([
+    $unmeasured = Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
         'category_id' => $category->id,
-        'name' => 'Unmeasured water content',
-        'slug' => 'unmeasured-water-content-fresh',
+        'name' => 'Unmeasured fibers and water',
+        'slug' => 'unmeasured-fibers-and-water-fresh',
         'storage' => IngredientStorage::Fresh,
+        'fibers' => null,
         'water' => null,
-        'salt' => 0,
     ]);
 
-    $reloaded = Ingredient::query()->findOrFail($ingredient->id);
+    $measuredAtZero = Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
+        'category_id' => $category->id,
+        'name' => 'Measured at zero',
+        'slug' => 'measured-at-zero-fresh',
+        'storage' => IngredientStorage::Fresh,
+        'fibers' => 0,
+        'water' => 0,
+    ]);
 
-    expect($reloaded->water)->toBeNull()
-        ->and((string) $reloaded->salt)->toBe('0.00');
+    $unmeasured = Ingredient::query()->findOrFail($unmeasured->id);
+    $measuredAtZero = Ingredient::query()->findOrFail($measuredAtZero->id);
+
+    expect($unmeasured->fibers)->toBeNull()
+        ->and($unmeasured->water)->toBeNull()
+        ->and($measuredAtZero->fibers)->toBe('0.00')
+        ->and($measuredAtZero->water)->toBe('0.00');
+});
+
+test('refuses at the database level to save an ingredient without a core nutrition value', function (string $field) {
+    $category = IngredientCategoryFactory::new()->create();
+
+    expect(fn () => Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
+        'category_id' => $category->id,
+        'name' => "Missing {$field}",
+        'slug' => "missing-{$field}-fresh",
+        'storage' => IngredientStorage::Fresh,
+        $field => null,
+    ]))->toThrow(QueryException::class);
+})->with(['calories', 'fats', 'saturates', 'carbohydrates', 'sugars', 'proteins', 'salt']);
+
+test('stores calories as an exact two-decimal value rather than a rounded integer', function () {
+    $ingredient = IngredientFactory::new()->create(['calories' => 72.8]);
+
+    expect(Ingredient::query()->findOrFail($ingredient->id)->calories)->toBe('72.80');
 });
 
 test('derives public privacy when owner_id is null', function () {
@@ -123,6 +176,7 @@ test('privacy ignores a manually-set value and derives from owner_id instead', f
     $category = IngredientCategoryFactory::new()->create();
 
     $ingredient = new Ingredient([
+        ...ingredientCoreNutrition(),
         'category_id' => $category->id,
         'owner_id' => null,
         'name' => 'Manually flagged private',
@@ -188,6 +242,7 @@ test('defaults to_review to false and casts it to a real boolean', function () {
     // Deliberately omits to_review from the create() payload — this is what proves the
     // column's own DB-level default (not the factory's explicit `false`) is what applies.
     $ingredient = Ingredient::query()->create([
+        ...ingredientCoreNutrition(),
         'category_id' => $category->id,
         'name' => 'Unflagged ingredient',
         'slug' => 'unflagged-ingredient-fresh',

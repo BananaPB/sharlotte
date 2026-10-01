@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use LogicException;
 use Throwable;
 
 /**
@@ -277,16 +278,20 @@ class ImportIngredientsCommand extends Command
             throw new InvalidArgumentException("duplicate slug '{$slug}', already produced by row {$seenSlugs[$slug]}");
         }
 
-        $calories = $this->parseCalories($cells['Calories']);
+        // The seven core values are mandatory (docs/decisions.md entry 9): a blank cell
+        // rejects the row. Fibers and Water stay optional — blank means "unknown" (null).
+        $required = fn (string $field): string => $this->requireValue($cells, $rawCells, $field);
+
+        $calories = $this->parseCalories($required('Calories'));
 
         $nutrition = [
-            'fats' => $this->parseGrams($cells['Fats'], 'Fats'),
-            'saturates' => $this->parseGrams($cells['Saturates'], 'Saturates'),
-            'carbohydrates' => $this->parseGrams($cells['Carbohydrates'], 'Carbohydrates'),
-            'sugars' => $this->parseGrams($cells['Sugars'], 'Sugars'),
+            'fats' => $this->parseRequiredGrams($required('Fats'), 'Fats'),
+            'saturates' => $this->parseRequiredGrams($required('Saturates'), 'Saturates'),
+            'carbohydrates' => $this->parseRequiredGrams($required('Carbohydrates'), 'Carbohydrates'),
+            'sugars' => $this->parseRequiredGrams($required('Sugars'), 'Sugars'),
             'fibers' => $this->parseGrams($cells['Fibers'], 'Fibers'),
-            'proteins' => $this->parseGrams($cells['Proteins'], 'Proteins'),
-            'salt' => $this->parseGrams($cells['Salt'], 'Salt'),
+            'proteins' => $this->parseRequiredGrams($required('Proteins'), 'Proteins'),
+            'salt' => $this->parseRequiredGrams($required('Salt'), 'Salt'),
             'water' => $this->parseGrams($cells['Water'], 'Water'),
         ];
 
@@ -320,19 +325,41 @@ class ImportIngredientsCommand extends Command
         });
     }
 
-    private function parseCalories(string $raw): ?int
+    /**
+     * Return a mandatory cell's value, or reject the row if it is blank (or the literal
+     * "null", which $cells already normalized to ''). The error quotes the raw cell so the
+     * user can see what the source file actually contained.
+     *
+     * @param  array<string, string>  $cells
+     * @param  array<string, string>  $rawCells
+     */
+    private function requireValue(array $cells, array $rawCells, string $field): string
+    {
+        if (trim($cells[$field]) === '') {
+            throw new InvalidArgumentException("missing required {$field} (got '{$rawCells[$field]}')");
+        }
+
+        return $cells[$field];
+    }
+
+    /**
+     * Calories are kept as an exact 2-decimal value, never rounded to an integer: rounding
+     * before summing compounds across a recipe (docs/decisions.md entry 9).
+     */
+    private function parseCalories(string $raw): float
     {
         $value = $this->parseDecimal($raw, 'Calories');
 
         if ($value === null) {
-            return null;
+            // Unreachable by construction: requireValue() already rejected a blank cell.
+            throw new LogicException('Calories reached parseCalories() blank despite requireValue()');
         }
 
         if ($value < 0 || $value > self::MAX_CALORIES) {
             throw new InvalidArgumentException(sprintf('Calories out of range (0-%d): %s', self::MAX_CALORIES, $value));
         }
 
-        return (int) round($value);
+        return $value;
     }
 
     private function parseGrams(string $raw, string $field): ?float
@@ -351,9 +378,26 @@ class ImportIngredientsCommand extends Command
     }
 
     /**
+     * Same as parseGrams(), for the mandatory core gram fields: the input has already been
+     * through requireValue(), so the result is never null.
+     */
+    private function parseRequiredGrams(string $raw, string $field): float
+    {
+        $value = $this->parseGrams($raw, $field);
+
+        if ($value === null) {
+            // Unreachable by construction: requireValue() already rejected a blank cell.
+            throw new LogicException("{$field} reached parseRequiredGrams() blank despite requireValue()");
+        }
+
+        return $value;
+    }
+
+    /**
      * Parse a French-locale numeric cell (comma or dot decimal separator) into a float.
      * A blank cell means "unknown data point" and returns null — it is never coerced to 0,
      * since for these fields (especially Water) 0 and "unknown" are different facts.
+     * Mandatory fields never reach here blank: requireValue() rejects them first.
      */
     private function parseDecimal(string $raw, string $field): ?float
     {
