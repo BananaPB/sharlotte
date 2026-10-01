@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Models\Preparation;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -32,6 +33,7 @@ class UnitFactory extends Factory
             // Factory instances on `<relation>_id` keys are resolved by Eloquent (see
             // IngredientFactory for details); IngredientFactory defaults to public.
             'ingredient_id' => IngredientFactory::new(),
+            'preparation_id' => null,
             'format_id' => FormatFactory::new(),
             'owner_id' => null,
             // Strictly positive, matching the units_grams_positive CHECK constraint.
@@ -47,5 +49,23 @@ class UnitFactory extends Factory
     public function ownedBy(User $owner): static
     {
         return $this->state(fn (): array => ['owner_id' => $owner->id]);
+    }
+
+    /**
+     * A unit on the given preparation (a new one by default), owned by that preparation's
+     * owner — the only valid owner, since preparations are always private.
+     */
+    public function forPreparation(?Preparation $preparation = null): static
+    {
+        return $this->state(function () use ($preparation): array {
+            /** @var Preparation $component see IngredientFactory::private() for why the @var */
+            $component = $preparation ?? PreparationFactory::new()->create();
+
+            return [
+                'ingredient_id' => null,
+                'preparation_id' => $component->id,
+                'owner_id' => $component->owner_id,
+            ];
+        });
     }
 }
