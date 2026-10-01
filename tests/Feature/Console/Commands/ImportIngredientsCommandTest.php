@@ -85,7 +85,7 @@ describe('with categories and allergens seeded', function () {
         expect(Ingredient::query()->count())->toBe(3);
 
         $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
-        expect($apple->calories)->toBe(52)
+        expect($apple->calories)->toBe('52.00')
             ->and((string) $apple->fats)->toBe('0.17')
             ->and((string) $apple->water)->toBe('85.56')
             ->and($apple->storage)->toBe(IngredientStorage::Fresh)
@@ -144,7 +144,7 @@ describe('with categories and allergens seeded', function () {
         expect(Ingredient::query()->count())->toBe(1);
 
         $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
-        expect($apple->calories)->toBe(55)
+        expect($apple->calories)->toBe('55.00')
             ->and((string) $apple->fats)->toBe('0.20');
     });
 
@@ -166,7 +166,7 @@ describe('with categories and allergens seeded', function () {
         $this->artisan('ingredients:import', ['path' => $secondPath])->assertExitCode(0);
 
         $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
-        expect($apple->calories)->toBe(55)
+        expect($apple->calories)->toBe('55.00')
             ->and($apple->to_review)->toBeTrue();
     });
 
@@ -213,7 +213,7 @@ describe('with categories and allergens seeded', function () {
             ->assertExitCode(0);
 
         expect(Ingredient::query()->count())->toBe(1);
-        expect(Ingredient::query()->firstOrFail()->calories)->toBe(52);
+        expect(Ingredient::query()->firstOrFail()->calories)->toBe('52.00');
     });
 
     test('parses a French-locale export: semicolon-delimited with comma decimals', function () {
@@ -272,7 +272,7 @@ describe('with categories and allergens seeded', function () {
             ->assertExitCode(0);
 
         $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
-        expect($apple->calories)->toBe(52)
+        expect($apple->calories)->toBe('52.00')
             ->and($apple->storage)->toBe(IngredientStorage::Fresh);
     });
 
@@ -304,6 +304,69 @@ describe('with categories and allergens seeded', function () {
             ->assertExitCode(0);
 
         expect(Ingredient::query()->count())->toBe(0);
+    });
+
+    test('keeps decimal calories exactly as given, without rounding them to an integer', function (string $delimiter, string $calories) {
+        $path = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', $calories, '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+        ], delimiter: $delimiter);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 1')
+            ->expectsOutputToContain('No errors.')
+            ->assertExitCode(0);
+
+        expect(Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail()->calories)->toBe('72.80');
+    })->with([
+        'French comma decimal' => [';', '72,8'],
+        'dot decimal' => [',', '72.8'],
+    ]);
+
+    test('rejects a row missing a mandatory core nutrition value, reports it, and still imports the other rows', function (int $column, string $field, string $missingValue) {
+        $incomplete = ['Fruits', 'Poire', 'frais', 'public', '57', '0.1', '0.02', '15.46', '9.8', '3.1', '0.36', '0', '83.8', '', ''];
+        $incomplete[$column] = $missingValue;
+
+        $path = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '2.4', '0.26', '0', '85.56', '', ''],
+            $incomplete,
+            ['Fruits', 'Banane', 'frais', 'public', '89', '0.33', '0.11', '22.84', '12.23', '2.6', '1.09', '0', '74.91', '', ''],
+        ]);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 2')
+            ->expectsOutputToContain('1 row(s) skipped')
+            ->expectsOutputToContain("Row 3: missing required {$field} (got '{$missingValue}')")
+            ->assertExitCode(0);
+
+        expect(Ingredient::query()->pluck('slug')->sort()->values()->all())
+            ->toBe(['banane-fresh', 'pomme-fresh']);
+    })->with([
+        'Calories' => [4, 'Calories'],
+        'Fats' => [5, 'Fats'],
+        'Saturates' => [6, 'Saturates'],
+        'Carbohydrates' => [7, 'Carbohydrates'],
+        'Sugars' => [8, 'Sugars'],
+        'Proteins' => [10, 'Proteins'],
+        'Salt' => [11, 'Salt'],
+    ])->with([
+        'blank cell' => [''],
+        'literal null' => ['null'],
+    ]);
+
+    test('accepts blank fibers and water, storing them as unknown (null) rather than zero', function () {
+        $path = makeIngredientsCsv([
+            ['Fruits', 'Pomme', 'frais', 'public', '52', '0.17', '0.03', '13.81', '10.39', '', '0.26', '0', '', '', ''],
+        ]);
+
+        $this->artisan('ingredients:import', ['path' => $path])
+            ->expectsOutputToContain('Imported: 1')
+            ->expectsOutputToContain('No errors.')
+            ->assertExitCode(0);
+
+        $apple = Ingredient::query()->where('slug', 'pomme-fresh')->firstOrFail();
+        expect($apple->fibers)->toBeNull()
+            ->and($apple->water)->toBeNull()
+            ->and($apple->salt)->toBe('0.00');
     });
 });
 
