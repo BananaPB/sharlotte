@@ -25,3 +25,4 @@ Implement a complete feature (backend + frontend) from a functional description,
 - Don't modify `docs/architecture.md` or `docs/changelog.md` (the `doc` agent's role).
 - Don't commit or push yourself — human control over the diff stays strict.
 - Don't touch files outside the scope of the requested feature.
+- Never kill processes by name (`taskkill /IM php.exe`, `pkill php`, etc.): it also kills the developer's own `php artisan serve`, Herd or queue workers. If a command hangs, stop it by its own PID or report the hang. Run tinker non-interactively (`php artisan tinker --execute=...`) so it can't hang waiting for input.

@@ -51,3 +51,4 @@ Audit the current `git diff` (never the whole repo, except on explicit request) 
 
 - Don't modify business logic to "fix" a security issue without explicitly flagging it — human control stays strict on this type of change.
 - Don't touch tests or documentation.
+- Never kill processes by name (`taskkill /IM php.exe`, `pkill php`, etc.): it also kills the developer's own `php artisan serve`, Herd or queue workers. If a command hangs, stop it by its own PID or report the hang. Run tinker non-interactively (`php artisan tinker --execute=...`) so it can't hang waiting for input.
