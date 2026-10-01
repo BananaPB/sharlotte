@@ -63,7 +63,7 @@ Open questions to revisit when Phase 4 actually starts (not urgent before then):
 
 ### Ingredients (Phase 1 — data layer only)
 
-The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2: their schema is decided ([`decisions.md`](decisions.md) entry 8) but not yet built. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
+The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2: their schema is decided ([`decisions.md`](decisions.md) entry 8); only its first step, formats & units (below), is built so far. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
 
 **Schema**
 
@@ -83,6 +83,7 @@ The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` t
 - `App\Enums\IngredientStorage` (`fresh`/`frozen`/`ambient` — `ambient` meaning stored at room temperature, mapped from the spreadsheet's "sec") is part of an ingredient's identity, not a mutable attribute — a frozen and a fresh version of "the same" food have different nutrition and can't substitute for each other in a recipe.
 - `App\Enums\IngredientPrivacy` (`public`/`private`) is derived automatically from `owner_id`'s nullability by a model `saving()` hook, and is never independently settable — this keeps the two columns from drifting apart while still giving `privacy` its own stored, queryable column (the source spreadsheet and the domain model both treat it as first-class). Deliberately two-valued only; see [`decisions.md`](decisions.md)'s Deferred list (2026-09-22) for the rejected "family"/team-shared tier.
 - `Ingredient::slug` is unique and built from `name + storage + owner_id` (`Ingredient::buildSlug()`), because the same name can legitimately exist more than once — different storage state, or the same name owned by different users.
+- `owner_id` is **not** mass-assignable (absent from `$fillable`, same on `Unit`). Ownership is always set explicitly from the authenticated user (`owner()->associate($user)`) or, for public data, by assigning `owner_id = null` directly — request input can never choose the owner, and through it the privacy.
 
 **Import**
 
@@ -93,7 +94,25 @@ Rules worth knowing when touching it:
 - Header names are matched case-insensitively (the real export uses lowercase headers) and rewritten to their canonical casing, so the rest of the command only ever sees one spelling.
 - A cell containing the literal text `null` is treated as blank. Error messages still quote the raw cell, so the reported value matches what's actually in the file.
 - A row missing any of the seven core nutrition values is rejected; blank `Fibers`/`Water` import as `null`. Calories are stored as parsed, never rounded ([`decisions.md`](decisions.md) entry 9).
+- The upsert is spelled out as `firstOrNew(['slug' => …])` + `fill()` + explicit `owner_id = null` + `save()` rather than `updateOrCreate()`, because `owner_id` isn't fillable. Every imported row, created or updated, is (and stays) public.
 - The upsert never writes `to_review`, so re-importing a corrected spreadsheet keeps manual review flags.
+
+### Formats & units (Phase 2 step 1 — data layer only)
+
+A unit lets a quantity be entered as "2 tranches" instead of grams: it gives one **format** a weight in grams for one specific component (e.g. "Jambon: 1 tranche = 40 g"). Recipes still reason in grams only; see [`domain-model.md`](domain-model.md) §Units and [`decisions.md`](decisions.md) entry 8. Like Phase 1, no controllers, Policies, FormRequests or pages yet.
+
+**Schema**
+
+- `formats` — closed, read-only lookup list: `code` (unique, stable English identity), `label_fr` and `label_fr_plural`. The plural is an explicit column so display picks singular/plural by quantity and never computes French plurals in code. `FormatSeeder` (called from `DatabaseSeeder`) seeds the 6 rows idempotently via `updateOrCreate` on `code`: `slice`, `bottle`, `box`, `pack`, `piece`, `clove`.
+- `units` — `ingredient_id` (`cascadeOnDelete`: a unit means nothing without its component), `format_id` (`restrictOnDelete`: a format in use can't be removed), `owner_id` (nullable, `cascadeOnDelete`, like private ingredients), all three explicitly indexed. `grams` is `decimal(8,2)` with a DB `CHECK (grams > 0)` (`units_grams_positive`), cast to `decimal:2`. No uniqueness on (ingredient, format, owner): near-duplicates like "tranche fine" / "tranche épaisse" are accepted (entry 8).
+- Ingredient-only for now. Step 2 will make `ingredient_id` nullable and add `preparation_id`, with a CHECK that exactly one of the two is set.
+- `owner_id` null = public unit, supported by the schema but none seeded yet (see [`decisions.md`](decisions.md) Deferred, "Seed common public units"). Privacy is derived from `owner_id` (`Unit::isPublic()`), not stored.
+
+**Ownership rules**
+
+- A `saving()` hook on `Unit` enforces that a unit on a **private** ingredient belongs to that ingredient's owner, and throws a `LogicException` otherwise, since reaching it means a caller skipped validation/authorization. A private unit on a **public** ingredient is allowed. The ingredient's owner is re-queried on each save rather than read from the cached relation.
+- `Unit::visibleTo($user)` scope = public units + the user's own. `Ingredient::units()` returns all units unfiltered, so apply the scope when showing them to a user.
+- Known limits: the hook doesn't run on bulk/query-builder writes, and it isn't re-checked when an ingredient's owner changes.
 
 ### Data storage
 
