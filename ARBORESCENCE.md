@@ -4,20 +4,32 @@
 sharlotte/
 ├── .claude/
 │   ├── agents/                     # Specialized sub-agents (separated roles)
-│   │   ├── dev.md                  # Dev agent — code generation
-│   │   ├── quality.md              # Quality & Security agent — diff audit
-│   │   ├── qa.md                   # QA/Test agent — Pest & Vitest
+│   │   ├── dev.md                  # Dev agent — builds test-first at the brief's seams
+│   │   ├── quality.md              # Quality & Security agent — diff audit, linters
+│   │   ├── spec.md                 # Spec reviewer — does the diff do what the brief asked?
+│   │   ├── qa.md                   # QA/Test agent — tries to break the feature from its brief
 │   │   └── doc.md                  # Documentation agent — docs & changelog
 │   ├── commands/                   # Slash commands (orchestration)
+│   │   ├── cto.md                  # /cto — decisions, and nightshift planning
 │   │   ├── feature.md              # /feature — creates a branch + launches the Dev agent
-│   │   ├── audit.md                # /audit — launches the Quality & Security agent
+│   │   ├── audit.md                # /audit — launches the Quality & Spec agents in parallel
 │   │   ├── test.md                 # /test — launches the QA/Test agent
 │   │   └── doc.md                  # /doc — launches the Documentation agent (post-merge)
-│   └── settings.json               # Permissions & default model (optional, see guide)
+│   ├── skills/
+│   │   ├── tdd/                    # Red → green loop (adapted from mattpocock/skills), preloaded by dev
+│   │   └── grilling/               # Question rounds until a brief is settled (mattpocock/skills), used by /cto
+│   ├── settings.json               # Permissions & default model
+│   └── settings.headless.json      # Extra permissions for unattended (nightshift) runs
+├── .devcontainer/                  # One Linux toolchain for VS Code and nightshift (PHP 8.5, Node 22, Postgres 17)
+├── scripts/nightshift/             # Unattended runner started by Hermes — see docs/nightshift.md
 ├── .github/
+│   ├── CODEOWNERS                  # Owner review required on main (the bot can't approve its own work)
+│   ├── ISSUE_TEMPLATE/
+│   │   └── feature-brief.md        # The brief format every feature starts from
 │   └── workflows/
 │       └── ai-pr-review.yml        # Remote PR Reviewer agent (GitHub Actions)
 ├── docs/
+│   ├── nightshift.md               # Setup & daily use of unattended runs
 │   ├── architecture.md             # Technical doc kept up to date by the Documentation agent
 │   └── changelog.md                # User-facing changelog kept up to date by the Documentation agent
 ├── CLAUDE.md                       # Global directives read by all agents

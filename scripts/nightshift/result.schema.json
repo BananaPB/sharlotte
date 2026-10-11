@@ -1,0 +1,28 @@
+{
+    "type": "object",
+    "properties": {
+        "status": {
+            "type": "string",
+            "enum": ["pr_ready", "escalated", "failed"],
+            "description": "pr_ready: PR open, CI green, no blocking review finding. escalated: stopped on purpose because a human decision is needed. failed: could not finish for another reason."
+        },
+        "pr_url": {
+            "type": "string",
+            "description": "URL of the pull request, if one was opened."
+        },
+        "branch": {
+            "type": "string",
+            "description": "Name of the feature branch, if one was created."
+        },
+        "reason": {
+            "type": "string",
+            "description": "For escalated/failed: the exact question or blocker, in one or two sentences a human can act on from a phone."
+        },
+        "summary": {
+            "type": "string",
+            "description": "Two to five sentences: what was built, how it was tested, what the reviewer should look at first."
+        }
+    },
+    "required": ["status", "summary"],
+    "additionalProperties": false
+}

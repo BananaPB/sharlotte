@@ -1,0 +1,64 @@
+# Dev environment: the toolchain container + the same Postgres as docker-compose.yml and CI.
+#
+# `app` shares Postgres's network namespace (network_mode: service:postgres), so the database is
+# reachable on 127.0.0.1:5432 from inside `app` — exactly what .env.example and phpunit.xml already
+# say. No DB_HOST override anywhere, no "works in the container, not in CI" difference.
+#
+# Used two ways:
+#   - VS Code: "Dev Containers: Reopen in Container" (see devcontainer.json).
+#   - nightshift: scripts/nightshift/nightshift.sh runs `docker compose -f .devcontainer/compose.yaml
+#     run --rm app claude -p ...` against a worktree mounted as /workspace (WORKSPACE_DIR).
+name: sharlotte-dev
+
+services:
+    postgres:
+        image: postgres:17-alpine # same tag as CI and docker-compose.yml
+        environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres # local-only throwaway value, same as phpunit.xml
+            POSTGRES_DB: sharlotte
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+            - ../docker/postgres/init-testing-db.sql:/docker-entrypoint-initdb.d/init-testing-db.sql:ro
+        # No published ports: VS Code forwards 8000/5173 from inside (devcontainer.json "forwardPorts"),
+        # and nightshift needs none, so a nightshift run never clashes with an open VS Code session.
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U postgres']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                # Match the host user that owns the mounted folder (nightshift's work dirs, or your clone).
+                USER_UID: ${USER_UID:-1000}
+                USER_GID: ${USER_GID:-1000}
+        image: sharlotte-dev:latest
+        network_mode: service:postgres
+        depends_on:
+            postgres:
+                condition: service_healthy
+        volumes:
+            # VS Code mounts the repo; nightshift mounts a fresh worktree instead (WORKSPACE_DIR).
+            - ${WORKSPACE_DIR:-..}:/workspace:cached
+            # Claude Code login/settings for interactive use in VS Code. nightshift doesn't rely on it:
+            # it passes CLAUDE_CODE_OAUTH_TOKEN instead.
+            - claude-home:/home/dev/.claude
+            # Package caches, so a fresh nightshift worktree doesn't re-download everything.
+            - composer-cache:/home/dev/.cache/composer
+            - npm-cache:/home/dev/.npm
+        environment:
+            # Only set when nightshift passes them; empty in interactive use.
+            NIGHTSHIFT: ${NIGHTSHIFT:-}
+            CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+            GH_TOKEN: ${GH_TOKEN:-}
+        command: sleep infinity
+
+volumes:
+    pgdata:
+    claude-home:
+    composer-cache:
+    npm-cache:
