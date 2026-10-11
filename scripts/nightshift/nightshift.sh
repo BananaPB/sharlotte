@@ -15,7 +15,8 @@
 #   audit           start a full security audit in the background (security-audit skill)
 #   cto "<msg>"|-   relay one message (or stdin) to the /cto session and print its reply
 #   cto-new         forget the current /cto session (next message starts a new one)
-#   install-hermes  write the wrapper scripts Hermes' cron jobs call into $HERMES_HOME/scripts
+#   install-hermes  write the wrapper scripts Hermes' cron jobs call (see cmd_install_hermes)
+#   ssh-dispatch    SSH forced command for a containerized Hermes (see cmd_ssh_dispatch)
 set -euo pipefail
 
 SELF="$(readlink -f "$0")"
@@ -340,14 +341,39 @@ cmd_cto_new() {
     echo "Nouvelle conversation CTO."
 }
 
+# Writes the wrapper scripts Hermes' cron jobs call.
+#   HERMES_SCRIPTS_DIR  where to write them (default: $HERMES_HOME/scripts, i.e. ~/.hermes/scripts)
+#   NIGHTSHIFT_SSH      when Hermes runs in a container: the ssh command that reaches this host
+#                       with the restricted key, e.g.
+#                       "ssh -i /run/secrets/nightshift_key -o BatchMode=yes me@host.docker.internal"
+#                       The wrappers then call `$NIGHTSHIFT_SSH <command>` (see `ssh-dispatch`).
 cmd_install_hermes() {
-    local dest="${HERMES_HOME:-$HOME/.hermes}/scripts" c
+    local dest="${HERMES_SCRIPTS_DIR:-${HERMES_HOME:-$HOME/.hermes}/scripts}" c
     mkdir -p "$dest"
     for c in start watch report docs audit; do
-        printf '#!/usr/bin/env bash\nexec %q %s\n' "$SELF" "$c" > "$dest/nightshift-$c.sh"
+        if [ -n "${NIGHTSHIFT_SSH:-}" ]; then
+            printf '#!/usr/bin/env bash\nexec %s %s\n' "$NIGHTSHIFT_SSH" "$c" > "$dest/nightshift-$c.sh"
+        else
+            printf '#!/usr/bin/env bash\nexec %q %s\n' "$SELF" "$c" > "$dest/nightshift-$c.sh"
+        fi
         chmod +x "$dest/nightshift-$c.sh"
     done
     echo "wrappers written to $dest: nightshift-{start,watch,report,docs,audit}.sh"
+}
+
+# SSH forced command (authorized_keys: command="… nightshift.sh ssh-dispatch",restrict).
+# Lets Hermes, running in a container, ask this host for nightshift commands — and nothing else:
+# the key can't open a shell, forward ports, or run any command outside this list.
+# A CTO message is always read from stdin, never from the command line, so it's never parsed by a shell.
+cmd_ssh_dispatch() {
+    case "${SSH_ORIGINAL_COMMAND:-}" in
+    start | watch | report | docs | audit | cto-new) exec "$SELF" "$SSH_ORIGINAL_COMMAND" ;;
+    cto) exec "$SELF" cto - ;;
+    *)
+        echo "nightshift: command not allowed: ${SSH_ORIGINAL_COMMAND:-<none>}" >&2
+        exit 2
+        ;;
+    esac
 }
 
 case "${1:-}" in
@@ -361,6 +387,7 @@ audit) shift; cmd_audit "$@" ;;
 cto) shift; cmd_cto "$@" ;;
 cto-new) cmd_cto_new ;;
 install-hermes) cmd_install_hermes ;;
+ssh-dispatch) cmd_ssh_dispatch ;;
 *)
     sed -n '2,20p' "$SELF"
     exit 2

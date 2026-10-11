@@ -70,6 +70,48 @@ docker compose -p nightshift -f ~/nightshift/sharlotte/.devcontainer/compose.yam
 
 The image build is the first real test of `.devcontainer/Dockerfile` — if a step fails, the error names it.
 
+The config file can live anywhere: point `NIGHTSHIFT_ENV` at it (e.g. `export NIGHTSHIFT_ENV=~/docker/nightshift/env` in `~/.bashrc`) and adjust `REPO_DIR` / `STATE_DIR` inside it to match.
+
+### 4b. If Hermes itself runs in a Docker container
+
+Hermes can't run `nightshift.sh` from inside its container: the runner needs the host's Docker, git and gh. Don't mount the Docker socket into Hermes (that's root on the host for an agent with a shell). Instead, give Hermes an SSH key that can run **only** the nightshift commands on the host:
+
+```bash
+# on the host
+ssh-keygen -t ed25519 -N '' -C hermes-nightshift -f ~/docker/nightshift/hermes_key
+echo "command=\"NIGHTSHIFT_ENV=$HOME/docker/nightshift/env $HOME/docker/nightshift/sharlotte/scripts/nightshift/nightshift.sh ssh-dispatch\",restrict $(cat ~/docker/nightshift/hermes_key.pub)" >> ~/.ssh/authorized_keys
+```
+
+`restrict` forbids a shell, port forwarding and agent forwarding; the forced command only accepts `start`, `watch`, `report`, `docs`, `audit`, `cto` (message on stdin) and `cto-new`. Anything else is refused.
+
+In the Hermes stack's `docker-compose.yml`, add to the Hermes service, then `docker compose up -d`:
+
+```yaml
+extra_hosts:
+    - 'host.docker.internal:host-gateway' # reach the host's sshd from the container
+volumes:
+    - ~/docker/nightshift/hermes_key:/run/secrets/nightshift_key:ro
+```
+
+The key must be readable by the user the container runs as and by nobody else: `docker exec <hermes> id -u`, then `sudo chown <that uid> ~/docker/nightshift/hermes_key && chmod 600 ~/docker/nightshift/hermes_key`. The image needs an ssh client: `docker exec <hermes> which ssh` (if missing, add `openssh-client` to the image).
+
+Check it from inside the container — the first command prints nothing (no alerts yet), the second is refused:
+
+```bash
+docker exec -it <hermes> ssh -i /run/secrets/nightshift_key -o StrictHostKeyChecking=accept-new <you>@host.docker.internal watch
+docker exec -it <hermes> ssh -i /run/secrets/nightshift_key <you>@host.docker.internal ls
+```
+
+Then in step 6, write the wrappers into the folder your compose file mounts as Hermes' scripts directory, in SSH mode:
+
+```bash
+HERMES_SCRIPTS_DIR=<host path of Hermes' scripts folder> \
+NIGHTSHIFT_SSH="ssh -i /run/secrets/nightshift_key -o BatchMode=yes -o StrictHostKeyChecking=accept-new <you>@host.docker.internal" \
+$NS install-hermes
+```
+
+and in step 7, the CTO skill calls the same ssh command followed by `cto <<'MSG'` instead of `nightshift.sh cto -`.
+
 ### 5. A first run by hand, in the foreground
 
 Pick something small and boring. Open an issue with the **Feature brief** template, fill every section, add the label `nightshift:ready`, then:
