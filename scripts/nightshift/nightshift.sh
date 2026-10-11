@@ -38,6 +38,9 @@ mkdir -p "$STATE_DIR"/{nights,cto,audits,docs}
 EVENTS="$STATE_DIR/events.tsv"
 touch "$EVENTS"
 
+# One line, no tabs or \x1f: for text the model wrote that ends up in a one-record-per-line file.
+flatten() { printf '%s' "$1" | tr '\n\r\t\037' '    '; }
+
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >&2; }
 
 # One line per event, read back by `watch`: <time> <type> <text>
@@ -144,14 +147,27 @@ cmd_run() {
         rc=0
         RUN_TIMEOUT="$FEATURE_TIMEOUT" in_container nightshift "$dir/issue-$n" feature "$n" \
             > "$out" 2> "$dir/issue-$n.log" || rc=$?
+        # Throw the database away after each brief, so the next one starts from the same empty state
+        # instead of inheriting this brief's tables and migration rows.
+        docker compose -p nightshift -f "$REPO_DIR/.devcontainer/compose.yaml" down -v --remove-orphans >/dev/null 2>&1 || true
 
         status="$(jq -r '.structured_output.status // empty' "$out" 2>/dev/null || true)"
         pr="$(jq -r '.structured_output.pr_url // empty' "$out" 2>/dev/null || true)"
         branch="$(jq -r '.structured_output.branch // empty' "$out" 2>/dev/null || true)"
         reason="$(jq -r '.structured_output.reason // empty' "$out" 2>/dev/null || true)"
         summary="$(jq -r '.structured_output.summary // empty' "$out" 2>/dev/null || true)"
+        # These fields are written by the model: one record per line in results.tsv, so no newlines,
+        # tabs or separator characters may survive.
+        reason="$(flatten "$reason")"
+        pr="$(flatten "$pr")"
+        branch="$(flatten "$branch")"
         if [ -z "$status" ]; then
-            if grep -qiE 'usage limit|rate.?limit|limit reached' "$out" "$dir/issue-$n.log" 2>/dev/null; then
+            # Look for the usage limit only in Claude Code's own error result (or, if it produced no
+            # JSON, the last lines of its output) — never in the whole log, which contains the brief.
+            local error_text
+            error_text="$(jq -r 'select(.is_error == true) | .result // empty' "$out" 2>/dev/null || true)"
+            [ -s "$out" ] || error_text="$(tail -n 5 "$dir/issue-$n.log" 2>/dev/null || true)"
+            if grep -qiE 'usage limit|rate.?limit|limit reached' <<< "$error_text"; then
                 status="limit"
                 reason="Limite d'usage Claude atteinte."
             elif [ "$rc" -eq 124 ]; then
@@ -235,6 +251,7 @@ write_report() { # <dir> <night>
 }
 
 cmd_watch() {
+    # Single caller assumed (one Hermes cron job): two overlapping calls could lose or repeat an alert.
     local offset_file="$STATE_DIR/watch.offset" offset total
     offset="$(cat "$offset_file" 2>/dev/null || echo 0)"
     total="$(wc -l < "$EVENTS")"
@@ -259,7 +276,7 @@ cmd_docs() {
     exec 8> "$STATE_DIR/docs.lock"
     flock -n 8 || exit 0
     local since_file="$STATE_DIR/docs/last-run" since latest out
-    since="$(cat "$since_file" 2>/dev/null || date -d '7 days ago' +%FT%T)"
+    since="$(cat "$since_file" 2>/dev/null || date -u -d '7 days ago' +%FT%TZ)"
     # Merged PRs since the last docs run, ignoring the docs PRs themselves.
     latest="$(gh pr list -R "$REPO_SLUG" --state merged --base main --limit 50 \
         --search "merged:>$since" --json number,headRefName |
@@ -271,7 +288,7 @@ cmd_docs() {
     out="$STATE_DIR/docs/pr-$latest.json"
     in_container nightshift-docs "$workdir" doc "$latest" > "$out" 2> "$STATE_DIR/docs/pr-$latest.log" || true
     docker compose -p nightshift-docs -f "$REPO_DIR/.devcontainer/compose.yaml" down -v >/dev/null 2>&1 || true
-    date +%FT%T > "$since_file"
+    date -u +%FT%TZ > "$since_file" # UTC: GitHub's merged:> search reads it as UTC
     rm -rf "$workdir"
     event docs "Doc après #$latest : $(jq -r '.structured_output.status // "failed"' "$out" 2>/dev/null) $(jq -r '.structured_output.pr_url // .structured_output.reason // empty' "$out" 2>/dev/null)"
 }
