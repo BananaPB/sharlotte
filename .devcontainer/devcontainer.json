@@ -1,0 +1,19 @@
+{
+    "name": "sharlotte",
+    "dockerComposeFile": "compose.yaml",
+    "service": "app",
+    "workspaceFolder": "/workspace",
+    "shutdownAction": "stopCompose",
+    "forwardPorts": [8000, 5173],
+    "postCreateCommand": "bash .devcontainer/post-create.sh",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "anthropic.claude-code",
+                "bmewburn.vscode-intelephense-client",
+                "dbaeumer.vscode-eslint",
+                "bradlc.vscode-tailwindcss"
+            ]
+        }
+    }
+}

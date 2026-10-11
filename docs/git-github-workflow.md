@@ -209,6 +209,8 @@ Both were reproduced directly, and several standard workarounds were tried and r
 
 **The shape of the fix**: there isn't one that lives in this repo. The bug is either in npm's Windows `cmd.exe` script runner or in `vite-plus`'s compiled binary — both third-party, closed to a one-line fix, and not worth the hours it'd take to chase inside a compiled Rust addon on a project with no users yet. **What actually works, confirmed**: open a genuinely fresh, top-level PowerShell or cmd window — not one spawned from inside Git Bash — and run `npm run check:fix` there. A fresh window loads a correct native Windows `PATH` from the start and never crosses the Git Bash/MSYS boundary that causes both failures above. `/cto`'s wrap-up mode now reminds you to do this before every push.
 
+**Update (2026-10-11)**: the devcontainer (`.devcontainer/`, see [nightshift.md](nightshift.md) step 9) runs everything in Linux, where `npm run check:fix` works; the agents now run it before every push when they're in the container.
+
 ### Try it yourself
 
 A reasonable order, in a repo with no risk of losing work since nothing here deletes commits:
