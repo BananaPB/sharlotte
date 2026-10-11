@@ -138,6 +138,7 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
     - the unit doesn't weigh the line's own component, or is private and not owned by the recipe's owner.
 
     Shape rules (one parent, one component, quantity, self-reference) are left to the CHECKs. Cost: 2 queries per save, 3 with a unit, all re-queried fresh rather than read from cached relations. Same limits as `Unit`: not run on bulk/query-builder writes, not re-checked if an owner changes later.
+
 - `App\Contracts\HasRecipe` (one method, `recipeLines()`), implemented by `Preparation` and `Product`, so the step 4 engine can be written once against recipe lines rather than per parent type.
 - `RecipeLine::parent()` and `component()` return whichever side is set; they are not relations, so eager-load `parentPreparation`/`product` and `ingredient`/`componentPreparation` before calling them in a loop.
 - `Preparation::usedInLines()` lists the lines that use a preparation as a component.
