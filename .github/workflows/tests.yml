@@ -69,4 +69,12 @@ jobs:
         run: composer setup
 
       - name: Run CI Checks
-        run: composer ci:check
+        # TEMPORARY (reverted in the next commit): surface the failing output as an annotation,
+        # because the job logs aren't readable from the session that opened this PR.
+        run: |
+          set -o pipefail
+          if ! composer ci:check 2>&1 | tee /tmp/ci.out; then
+            msg=$(grep -v '^\s*$' /tmp/ci.out | tail -n 120 | sed 's/%/%25/g' | awk '{ printf "%s%%0A", $0 }')
+            echo "::error title=ci-tail::${msg}"
+            exit 1
+          fi
