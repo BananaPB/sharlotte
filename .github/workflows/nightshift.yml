@@ -121,8 +121,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           # Agent output is untrusted text: switch workflow commands off while printing it, so a log
           # line like "::add-mask::" or "::error::" can't act on the runner.
-          stop="$(cat /proc/sys/kernel/random/uuid)"
-          echo "::stop-commands::$stop"
           for f in "$state"/nights/*/issue-*.log; do
             [ -f "$f" ] || continue
             echo "::group::$(basename "$f") (last 150 lines)"
@@ -132,7 +130,6 @@ jobs:
             echo "::$stop::"
             echo "::endgroup::"
           done
-          echo "::$stop::"
 
       - name: Un-stick interrupted briefs
         # Nothing should still be `running` once the job is over (concurrency allows one run at a time).
@@ -141,5 +138,5 @@ jobs:
         run: |
           for n in $(gh issue list -R "$GITHUB_REPOSITORY" --label nightshift:running --state open --json number --jq '.[].number'); do
             gh issue edit "$n" -R "$GITHUB_REPOSITORY" --remove-label nightshift:running --add-label nightshift:failed
-            gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "**Nightshift** — run interrompu (annulé ou délai dépassé). Vérifie la branche et la PR éventuelle, puis remets \`nightshift:ready\` pour relancer."
+            gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "**Nightshift** — run interrupted (cancelled or timed out). Check the branch and any PR, then set \`nightshift:ready\` again to retry."
           done
