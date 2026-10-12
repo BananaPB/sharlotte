@@ -2,11 +2,9 @@ name: AI PR Review
 
 on:
   pull_request:
+    # No paths-ignore: `claude-review` is a required check on main (ruleset), so it must
+    # report on docs-only PRs too, or they can never be merged.
     types: [opened, synchronize, ready_for_review]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.claude/**'
 
 concurrency:
   group: ai-pr-review-${{ github.event.pull_request.number }}
