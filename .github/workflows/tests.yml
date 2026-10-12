@@ -8,11 +8,9 @@ on:
       - 'docs/**'
       - '**/*.md'
       - '.claude/**'
+  # No paths-ignore here: `ci` is a required check on main (ruleset), and a required check
+  # that never runs leaves a docs-only PR waiting forever. The push filter above is fine.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.claude/**'
 
 permissions:
   contents: read
