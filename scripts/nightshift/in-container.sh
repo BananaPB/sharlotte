@@ -31,6 +31,16 @@ if [ "$mode" != "cto" ]; then
     bash .devcontainer/post-create.sh >&2
 fi
 
+# --- trust /workspace --------------------------------------------------------------------------
+# Without this, Claude Code ignores the project's permissions.allow ("workspace has not been
+# trusted") and `--permission-prompts none` then denies every command. Every mode runs in /workspace.
+# jq is installed in the dev container image; the existing file's other keys are kept.
+claude_json="$HOME/.claude.json"
+[ -s "$claude_json" ] || echo '{}' > "$claude_json"
+jq '.projects["/workspace"].hasTrustDialogAccepted = true' "$claude_json" > "$claude_json.tmp"
+mv "$claude_json.tmp" "$claude_json"
+chmod 600 "$claude_json" # it normally holds account data; the new file would get the default umask
+
 common_flags=(
     --settings .claude/settings.headless.json
     --permission-mode acceptEdits

@@ -130,6 +130,25 @@ jobs:
             echo "::$stop::"
             echo "::endgroup::"
           done
+          # The agent's JSON result (status, permission_denials...) is what explains a run that could
+          # not commit or push. Same protection; a missing or malformed file must not fail the step.
+          for f in "$state"/nights/*/issue-*.json; do
+            [ -f "$f" ] || continue
+            echo "::group::$(basename "$f") (result summary)"
+            stop="$(cat /proc/sys/kernel/random/uuid)"
+            echo "::stop-commands::$stop"
+            jq -r '
+              "subtype: \(.subtype // "?")",
+              "is_error: \(if .is_error == null then "?" else .is_error end)",
+              "num_turns: \(.num_turns // "?")",
+              "permission_denials (\((.permission_denials // []) | length)):",
+              ((.permission_denials // [])[] | "  - \(.tool_name // "?"): \(.tool_input | if type == "object" then (.command // tostring) else tostring end | .[0:300])"),
+              "result: \(.result // "?")",
+              "structured_output: \(.structured_output | tojson)"
+            ' "$f" 2>&1 || echo "(could not read $(basename "$f") as JSON)"
+            echo "::$stop::"
+            echo "::endgroup::"
+          done
 
       - name: Un-stick interrupted briefs
         # Nothing should still be `running` once the job is over (concurrency allows one run at a time).
