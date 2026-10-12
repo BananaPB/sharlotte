@@ -41,11 +41,18 @@ jq '.projects["/workspace"].hasTrustDialogAccepted = true' "$claude_json" > "$cl
 mv "$claude_json.tmp" "$claude_json"
 chmod 600 "$claude_json" # it normally holds account data; the new file would get the default umask
 
+# --- the one directory outside the repo the agent may write to ---------------------------------
+# --permission-mode acceptEdits only auto-approves edits inside the working directory, so the
+# agent's Write of its commit message / PR body to /tmp was denied. Allow exactly this directory
+# (not /tmp as a whole); the files stay outside the repo, so `git add` can never pick them up.
+mkdir -p /tmp/nightshift
+
 common_flags=(
     --settings .claude/settings.headless.json
     --permission-mode acceptEdits
     --permission-prompts none
     --append-system-prompt-file /nightshift/unattended.md
+    --add-dir /tmp/nightshift
 )
 if [ -n "${CLAUDE_MODEL:-}" ]; then
     common_flags+=(--model "$CLAUDE_MODEL")
