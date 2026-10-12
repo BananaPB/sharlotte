@@ -38,3 +38,4 @@ yarn-error.log
 /AGENTS.md
 /opencode.json
 /opencode.jsonc
+/app/Console/Commands/sharlotte-database-v5.csv
