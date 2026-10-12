@@ -126,7 +126,10 @@ jobs:
           for f in "$state"/nights/*/issue-*.log; do
             [ -f "$f" ] || continue
             echo "::group::$(basename "$f") (last 150 lines)"
+            stop="$(cat /proc/sys/kernel/random/uuid)"
+            echo "::stop-commands::$stop"
             tail -n 150 "$f"
+            echo "::$stop::"
             echo "::endgroup::"
           done
           echo "::$stop::"
