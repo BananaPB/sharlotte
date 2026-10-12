@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Recipes\RecipeCycleException;
+use App\Recipes\RecipeCycleGuard;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -114,6 +116,8 @@ class RecipeLine extends Model
             if ($line->unit_id !== null) {
                 $line->assertUnitFits($parentOwnerId);
             }
+
+            $line->assertNoCycle();
         });
     }
 
@@ -191,6 +195,39 @@ class RecipeLine extends Model
         };
 
         return $ownerId === null ? null : (int) $ownerId;
+    }
+
+    /**
+     * A preparation must not end up containing itself. Only preparation-in-preparation lines
+     * can cycle (a product is never a component), and only a new line or a changed link can
+     * introduce one: quantity, position and unit edits skip the guard (and its query).
+     */
+    private function assertNoCycle(): void
+    {
+        if ($this->parent_preparation_id === null || $this->component_preparation_id === null) {
+            return;
+        }
+
+        if ($this->exists && ! $this->isDirty(['parent_preparation_id', 'component_preparation_id'])) {
+            return;
+        }
+
+        $parentId = (int) $this->parent_preparation_id;
+        $componentId = (int) $this->component_preparation_id;
+
+        if (! (new RecipeCycleGuard)->wouldCreateCycle($parentId, $componentId)) {
+            return;
+        }
+
+        // Names are only looked up on the failure path, to build a readable message.
+        $names = Preparation::query()->whereIn('id', [$parentId, $componentId])->pluck('name', 'id');
+
+        throw RecipeCycleException::forLine(
+            (string) $names->get($parentId),
+            $parentId,
+            (string) $names->get($componentId),
+            $componentId,
+        );
     }
 
     /**
