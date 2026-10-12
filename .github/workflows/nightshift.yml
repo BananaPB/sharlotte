@@ -1,0 +1,142 @@
+name: Nightshift
+
+# Runs scripts/nightshift/nightshift.sh on a GitHub-hosted runner instead of on the home server.
+# Decision record: docs/decisions.md. Setup guide: docs/nightshift.md.
+#
+# Step 3 of the migration: manual trigger only. The schedule is commented out until a first run
+# by hand has been read and trusted (docs/nightshift.md, step 5).
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "run = process the queue, labels = create the nightshift:* labels (once)"
+        type: choice
+        options: [run, labels]
+        default: run
+      max_features:
+        description: "Maximum number of briefs for this run"
+        default: "3"
+      launch_window_hours:
+        description: "No new brief starts after this many hours (the current one finishes)"
+        default: "4"
+  # schedule:
+  #   # UTC, and GitHub cron ignores daylight saving: 21:07 UTC = 23:07 Paris in summer,
+  #   # 22:07 in winter. An empty queue costs a few seconds (see the "Queue" step).
+  #   - cron: "7 21 * * *"
+
+# Never two runs at once, and never cancel one in progress: a cancelled run leaves a half-built branch.
+concurrency:
+  group: nightshift
+  cancel-in-progress: false
+
+permissions:
+  contents: read # all writes (branches, PRs, labels, comments) are done by the bot token below
+
+jobs:
+  nightshift:
+    # The workflow file comes from the chosen ref. Only ever run it from main, so nobody can dispatch
+    # a copy of the script they edited on a branch while the bot's secrets are in the environment.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # GitHub's hard limit is 360 min. The launch window (default 4 h) + FEATURE_TIMEOUT (100 min)
+    # keep a normal run below it; this is the backstop.
+    timeout-minutes: 350
+    env:
+      TZ: Europe/Paris # STOP_LAUNCHING_AT and the report times are computed with `date`
+      NIGHTSHIFT_ENV: ${{ github.workspace }}/../nightshift.env
+      GH_TOKEN: ${{ secrets.NIGHTSHIFT_GH_TOKEN }}
+
+    steps:
+      - name: Check out main (for the script itself)
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Write the runner configuration
+        env:
+          BOT_NAME: ${{ vars.BOT_NAME }}
+          BOT_EMAIL: ${{ vars.BOT_EMAIL }}
+          TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          MAX_FEATURES: ${{ inputs.max_features || '3' }}
+          WINDOW_HOURS: ${{ inputs.launch_window_hours || '4' }}
+        run: |
+          set -euo pipefail
+          for v in BOT_NAME BOT_EMAIL TRUSTED_AUTHORS CLAUDE_CODE_OAUTH_TOKEN GH_TOKEN; do
+            [ -n "${!v}" ] || { echo "::error::$v is empty (secret or variable missing)"; exit 1; }
+          done
+          case "$MAX_FEATURES$WINDOW_HOURS" in *[!0-9]*) echo "::error::inputs must be numbers"; exit 1 ;; esac
+          # Last launch time = now + window. nightshift.sh reads it as "today HH:MM, else tomorrow".
+          STOP_AT="$(date -d "+${WINDOW_HOURS} hours" +%H:%M)"
+          umask 077
+          cat > "$NIGHTSHIFT_ENV" <<ENV
+          REPO_SLUG="${GITHUB_REPOSITORY}"
+          REPO_DIR="${RUNNER_TEMP}/sharlotte"
+          STATE_DIR="${RUNNER_TEMP}/state"
+          GH_TOKEN="${GH_TOKEN}"
+          BOT_NAME="${BOT_NAME}"
+          BOT_EMAIL="${BOT_EMAIL}"
+          CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_CODE_OAUTH_TOKEN}"
+          TRUSTED_AUTHORS="${TRUSTED_AUTHORS}"
+          MAX_FEATURES=${MAX_FEATURES}
+          STOP_LAUNCHING_AT=${STOP_AT}
+          FEATURE_TIMEOUT=100m
+          MAX_TURNS=300
+          CLAUDE_MODEL=
+          ENV
+          echo "launch window closes at $STOP_AT (Europe/Paris)"
+
+      - name: Create the labels (once)
+        if: inputs.action == 'labels'
+        run: bash scripts/nightshift/nightshift.sh labels
+
+      - name: Queue
+        id: queue
+        if: inputs.action != 'labels'
+        run: |
+          n="$(gh issue list -R "$GITHUB_REPOSITORY" --label nightshift:ready --state open --json number --jq length)"
+          echo "ready issues: $n"
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Run the queue
+        if: inputs.action != 'labels' && steps.queue.outputs.count != '0'
+        run: bash scripts/nightshift/nightshift.sh run
+
+      - name: Report and logs
+        if: always() && inputs.action != 'labels' && steps.queue.outputs.count != '0'
+        run: |
+          state="${RUNNER_TEMP}/state"
+          night="$(ls -1d "$state"/nights/*/ 2>/dev/null | sort | tail -n 1 || true)"
+          {
+            echo "## Nightshift"
+            if [ -n "$night" ] && [ -f "$night/report.md" ]; then cat "$night/report.md"; else echo "No report was written."; fi
+            echo
+            echo "### Events"
+            echo '```'
+            cat "$state/events.tsv" 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Agent output is untrusted text: switch workflow commands off while printing it, so a log
+          # line like "::add-mask::" or "::error::" can't act on the runner.
+          stop="$(cat /proc/sys/kernel/random/uuid)"
+          echo "::stop-commands::$stop"
+          for f in "$state"/nights/*/issue-*.log; do
+            [ -f "$f" ] || continue
+            echo "::group::$(basename "$f") (last 150 lines)"
+            tail -n 150 "$f"
+            echo "::endgroup::"
+          done
+          echo "::$stop::"
+
+      - name: Un-stick interrupted briefs
+        # Nothing should still be `running` once the job is over (concurrency allows one run at a time).
+        # If something is, the job was cancelled or timed out mid-brief: park it for a human.
+        if: always() && inputs.action != 'labels'
+        run: |
+          for n in $(gh issue list -R "$GITHUB_REPOSITORY" --label nightshift:running --state open --json number --jq '.[].number'); do
+            gh issue edit "$n" -R "$GITHUB_REPOSITORY" --remove-label nightshift:running --add-label nightshift:failed
+            gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "**Nightshift** — run interrompu (annulé ou délai dépassé). Vérifie la branche et la PR éventuelle, puis remets \`nightshift:ready\` pour relancer."
+          done
