@@ -126,6 +126,10 @@ class ExportIngredientsCommand extends Command
     }
 
     /**
+     * Values are written as-is, with no "=", "+", "-" or "@" prefix escaping against spreadsheet
+     * formula injection: escaping would change the data and break the re-import round trip, and
+     * every row comes from the curated import, not from user input.
+     *
      * @param  Collection<int, array<string, string>>  $rows
      */
     private function writeCsv(string $path, Collection $rows): void
