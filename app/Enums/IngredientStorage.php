@@ -32,6 +32,18 @@ enum IngredientStorage: string
         };
     }
 
+    /**
+     * Inverse of fromFrenchLabel(): the label the source spreadsheet (and the export) uses.
+     */
+    public function frenchLabel(): string
+    {
+        return match ($this) {
+            self::Fresh => 'frais',
+            self::Frozen => 'surgelé',
+            self::Ambient => 'sec',
+        };
+    }
+
     private static function normalize(string $value): string
     {
         return Str::of($value)->trim()->ascii()->lower()->toString();

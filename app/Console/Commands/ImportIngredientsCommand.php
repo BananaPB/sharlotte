@@ -33,8 +33,12 @@ class ImportIngredientsCommand extends Command
 
     protected $description = 'Import (upsert) the public ingredient database from a CSV export of the source spreadsheet';
 
-    /** @var list<string> */
-    private const REQUIRED_COLUMNS = [
+    /**
+     * Public so ingredients:export writes exactly the header this command reads.
+     *
+     * @var list<string>
+     */
+    public const REQUIRED_COLUMNS = [
         'Category',
         'Name',
         'Storage',
