@@ -28,6 +28,7 @@
             "Bash(gh run view *)",
             "Bash(gh run list *)",
             "Bash(gh api repos/*/pulls/*/comments)",
+            "Bash(gh api repos/*/issues/*/comments)",
             "Bash(composer install *)",
             "Bash(composer dump-autoload *)",
             "Bash(php artisan *)",
