@@ -157,9 +157,10 @@ jobs:
         run: |
           for n in $(gh issue list -R "$GITHUB_REPOSITORY" --label nightshift:running --state open --json number --jq '.[].number'); do
             # `gh issue list --label` goes through the search index, which lags a few seconds behind the
-            # label change the runner just made. Re-read the live issue and skip it if `running` is gone.
+            # label change the runner just made. Re-read the live issue (REST, no search index, no GraphQL)
+            # and skip it if `running` is gone.
             # An unreadable issue is skipped too: this step must never fail.
-            live_labels=$(gh issue view "$n" -R "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name' 2>/dev/null) || continue
+            live_labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$n" --jq '.labels[].name' 2>/dev/null) || continue
             printf '%s\n' "$live_labels" | grep -qx 'nightshift:running' || continue
             gh issue edit "$n" -R "$GITHUB_REPOSITORY" --remove-label nightshift:running --add-label nightshift:failed
             gh issue comment "$n" -R "$GITHUB_REPOSITORY" --body "**Nightshift** — run interrupted (cancelled or timed out). Check the branch and any PR, then set \`nightshift:ready\` again to retry."
