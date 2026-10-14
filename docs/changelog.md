@@ -11,7 +11,7 @@
 
 ### Improvements
 
-- **A preparation can't be made to contain itself.** If preparation A uses B, Sharlotte now refuses to let B use A, even through a longer chain, and tells you which preparations are involved. That would otherwise make a recipe impossible to calculate.
+- **A preparation can't be made to contain itself.** If preparation A uses B, Sharlotte now refuses to let B use A, even through a longer chain, and tells you which preparations are involved (there's no screen for this yet). That would otherwise make a recipe impossible to calculate.
 
 ## 2026-10-01
 
