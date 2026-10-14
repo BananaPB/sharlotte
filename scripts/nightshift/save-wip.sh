@@ -35,13 +35,20 @@ main() {
         case "$f" in
             .env.example | */.env.example) ;;
             .env* | */.env* | *.pem | *.key | *.p12 | auth.json | */auth.json | .claude/settings.local.json)
-                git reset -q -- "$f" && echo "save-wip: left out $f" >&2 ;;
+                # ":(literal)": match this exact name, not a glob pattern.
+                git reset -q -- ":(literal)$f" && echo "save-wip: left out $f" >&2 ;;
         esac
     done < <(git diff --cached --name-only -z)
     # Hooks are disabled: the agent could have planted one, and it would run with the bot token.
     if ! git diff --cached --quiet; then
         git -c core.hooksPath=/dev/null commit --quiet --no-verify -m "wip(nightshift): unfinished work on #$n" \
             || { echo "save-wip: git commit failed" >&2; return 0; }
+    fi
+
+    # Everything dirty may have been left out as a secret: then there is nothing worth saving.
+    if [ -n "$(git branch -r --contains HEAD 2>/dev/null)" ]; then
+        echo "save-wip: nothing left to save after leaving files out" >&2
+        return 0
     fi
 
     local wip="nightshift-wip/$n-$(date -u +%Y%m%d%H%M%S)"
