@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property string $name
  * @property int $owner_id
+ * @property int $servings
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $owner
@@ -30,8 +31,18 @@ class Product extends Model implements HasRecipe
 {
     // `owner_id` is deliberately not fillable: ownership is always set explicitly from the
     // authenticated user ($product->owner()->associate($user)), never mass-assigned.
+    // `servings` is how many portions the recipe makes. Display-only: it never changes
+    // composition or how a product is scaled, and it is never a component quantity.
     /** @var list<string> */
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'servings'];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['servings' => 'integer'];
+    }
 
     /**
      * @return BelongsTo<User, $this>
