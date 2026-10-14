@@ -21,7 +21,13 @@ use UnexpectedValueException;
  * Arithmetic: BCMath on strings only, scale 8 for intermediate values, rounded half-up to
  * 4 decimals at the end. No floats, so results are exact and repeatable.
  *
+ * Half-up rounding assumes non-negative amounts (recipe line quantities are validated > 0 by
+ * a DB CHECK); a negative amount would round towards zero instead.
+ *
  * It reads whatever the recipe points at: users, visibility and policies are not its concern.
+ *
+ * It keeps per-call state (loaded lines, computed preparations) in its properties: never bind
+ * it as a singleton, always use a fresh instance (`new RecipeFlattener`, or a non-shared binding).
  */
 class RecipeFlattener
 {
@@ -107,10 +113,10 @@ class RecipeFlattener
 
             $level = new Collection;
             foreach ($wanted as $id) {
-                /** @var Collection<int, RecipeLine> $lines */
-                $lines = $byParent->get($id, new Collection);
-                $this->linesOf[$id] = $lines;
-                $level = $level->concat($lines);
+                /** @var Collection<int, RecipeLine> $componentLines */
+                $componentLines = $byParent->get($id, new Collection);
+                $this->linesOf[$id] = $componentLines;
+                $level = $level->concat($componentLines);
             }
         }
     }
@@ -146,7 +152,8 @@ class RecipeFlattener
             }
 
             foreach ($componentTotals as $ingredientId => $componentGrams) {
-                // Multiply before dividing: one rounding step instead of two.
+                // Multiply before dividing: one rounding step instead of two. Truncating at scale 8 is
+                // intentional: only the final result is rounded half-up to 4 decimals.
                 $share = bcdiv(bcmul($componentGrams, $grams, self::WORKING_SCALE), $componentWeight, self::WORKING_SCALE);
                 $this->add($totals, $ingredientId, $share);
             }
@@ -225,7 +232,9 @@ class RecipeFlattener
     {
         $text = (string) $value;
 
-        if (! is_numeric($text)) {
+        // is_numeric() is looser than BCMath ("1e5", " 12", "1." pass it, BCMath throws on them), so the
+        // regex enforces BCMath's shape; is_numeric() stays first so PHPStan knows the result is a numeric-string.
+        if (! is_numeric($text) || preg_match('/^-?\d+(\.\d+)?$/', $text) !== 1) {
             throw new UnexpectedValueException('Recipe data contains a non-numeric amount: "'.$text.'".');
         }
 

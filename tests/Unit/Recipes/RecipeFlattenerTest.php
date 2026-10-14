@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\HasRecipe;
 use App\Models\Ingredient;
 use App\Models\Preparation;
 use App\Models\Product;
@@ -14,7 +15,9 @@ use Database\Factories\PreparationFactory;
 use Database\Factories\ProductFactory;
 use Database\Factories\RecipeLineFactory;
 use Database\Factories\UnitFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -445,4 +448,70 @@ test('runs the same number of queries for a wide and a narrow tree one level dee
     };
 
     expect($count(8))->toBe($count(1));
+});
+
+/**
+ * The amount guard can only be reached with raw strings: real models cast quantities to
+ * "decimal:2", which always yields a clean number. So the lines are stubs that return their
+ * attributes untouched, handed to the flattener through a stub recipe (no database rows).
+ */
+function flattenerStubRecipe(string $quantity): HasRecipe
+{
+    $line = new class extends RecipeLine
+    {
+        public string $rawQuantity = '';
+
+        public function getAttribute($key): mixed
+        {
+            return match ($key) {
+                'quantity' => $this->rawQuantity,
+                'ingredient_id' => 1,
+                'unit' => null,
+                default => null,
+            };
+        }
+    };
+    $line->rawQuantity = $quantity;
+
+    $relation = new class(Product::query(), new Product, 'product_id', 'id') extends HasMany
+    {
+        /** @var Collection<int, RecipeLine> */
+        public Collection $stubLines;
+
+        public function get($columns = ['*']): Collection
+        {
+            return $this->stubLines;
+        }
+    };
+    $relation->stubLines = new Collection([$line]);
+
+    return new class($relation) implements HasRecipe
+    {
+        public function __construct(private HasMany $relation) {}
+
+        public function recipeLines(): HasMany
+        {
+            return $this->relation;
+        }
+    };
+}
+
+test('rejects an amount BCMath cannot read, with a clear message', function (string $amount) {
+    expect(fn () => (new RecipeFlattener)->flatten(flattenerStubRecipe($amount)))
+        ->toThrow(UnexpectedValueException::class, 'non-numeric amount');
+})->with(['1e5', ' 12', '1.', '']);
+
+test('accepts plain decimal amounts', function (string $amount, string $expected) {
+    $result = (new RecipeFlattener)->flatten(flattenerStubRecipe($amount));
+
+    expect($result)->toBe([1 => $expected]);
+})->with([
+    ['12', '12.0000'],
+    ['0.5', '0.5000'],
+    ['12.0000', '12.0000'],
+]);
+
+test('does not reject a negative amount at the guard', function () {
+    // The DB forbids it (quantity > 0); only the guard's shape check is covered here.
+    expect(fn () => (new RecipeFlattener)->flatten(flattenerStubRecipe('-3')))->not->toThrow(UnexpectedValueException::class);
 });
