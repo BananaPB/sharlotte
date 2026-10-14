@@ -61,9 +61,14 @@ schema="$(cat /nightshift/result.schema.json)"
 
 case "$mode" in
 feature)
-    exec claude -p "/feature #${arg}" "${common_flags[@]}" \
+    # No exec: after claude ends, work that only exists in this container is saved on a
+    # nightshift-wip/* branch. claude's stdout (the JSON result) is passed through untouched.
+    rc=0
+    claude -p "/feature #${arg}" "${common_flags[@]}" \
         --max-turns "${MAX_TURNS:-300}" \
-        --output-format json --json-schema "$schema"
+        --output-format json --json-schema "$schema" || rc=$?
+    bash /nightshift/save-wip.sh "$arg" >&2 || true
+    exit "$rc"
     ;;
 doc)
     exec claude -p "/doc — documenting up to merged PR #${arg}" "${common_flags[@]}" \
