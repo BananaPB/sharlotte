@@ -34,7 +34,7 @@ Dataset export ──────▶│  (scheduled artisan       │
 
 - **Web UI** — Inertia pages (Phase 3).
 - **Public JSON API** — e.g. `/api/v1/ingredients`, `/api/v1/preparations`, `/api/v1/products/{id}`, built on Laravel API Resources. Read-only and unauthenticated for public entries; `Sanctum`-authenticated for a user's private ones. Throttled per IP (`throttle:` middleware) to keep hosting costs bounded — see [`vision.md`](vision.md)'s licensing section.
-- **Dataset download** — not live API pagination. A scheduled artisan command dumps the public `Ingredient` table (CC-BY data only, never private user entries) to a static CSV/JSON file served from storage/CDN and refreshed periodically. Cheap to serve, doesn't compete with the app's DB connections.
+- **Dataset download** — not live API pagination. A scheduled artisan command dumps the public `Ingredient` table (CC-BY data only, never private user entries) to a static CSV/JSON file served from storage/CDN and refreshed periodically ([`decisions.md`](decisions.md) entry 4). Cheap to serve, doesn't compete with the app's DB connections. The dump itself exists (`ingredients:export`, see "Dataset export" below); serving the files does not yet.
 
 The recursive Product → Preparation → Ingredient calculation (see [`domain-model.md`](domain-model.md)) lives entirely inside the Laravel app and is reachable through both the UI and the API — one implementation, two front doors.
 
@@ -63,7 +63,7 @@ Open questions to revisit when Phase 4 actually starts (not urgent before then):
 
 ### Ingredients (Phase 1 — data layer only)
 
-The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2 ([`decisions.md`](decisions.md) entries 8 and 10): formats & units and the preparation/product/recipe-line tables are built (below); the cycle guard and the calculation engine are not yet. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
+The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2 ([`decisions.md`](decisions.md) entries 8 and 10): formats & units and the preparation/product/recipe-line tables are built (below); the cycle guard and the recipe flattener are built too ("Recipe engine" below); nutrition and allergen aggregation are not yet. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
 
 **Schema**
 
@@ -116,7 +116,7 @@ A unit lets a quantity be entered as "2 tranches" instead of grams: it gives one
 
 ### Preparations, products & recipe lines (Phase 2 step 2 — data layer only)
 
-The composition layer of the `Product > Preparation > Ingredient` tree ([`domain-model.md`](domain-model.md), [`decisions.md`](decisions.md) entry 8). Tables and model rules only: no controllers, Policies, FormRequests or pages, and no calculation yet (step 4).
+The composition layer of the `Product > Preparation > Ingredient` tree ([`domain-model.md`](domain-model.md), [`decisions.md`](decisions.md) entry 8). Tables and model rules only: no controllers, Policies, FormRequests or pages, and no nutrition/allergen calculation yet (step 4, second half).
 
 **Schema**
 
@@ -127,7 +127,7 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
     - `unit_id` (nullable): `null` means `quantity` is in grams; otherwise `quantity` is a count of that unit (2 × "1 tranche = 40 g");
     - `position` (unsigned int, not unique, to keep reordering simple; lines are ordered by `position`, then `id`) and `quantity` (`decimal(10,2)`, cast to `decimal:2`);
     - every FK column explicitly indexed.
-- Named CHECKs on `recipe_lines`: `recipe_lines_one_parent` and `recipe_lines_one_component` (`num_nonnulls(...) = 1`), `recipe_lines_quantity_positive` (`quantity > 0`), `recipe_lines_no_self_reference` (`parent_preparation_id <> component_preparation_id`). Only the **direct** self-reference is blocked; the full, transitive cycle guard is step 3.
+- Named CHECKs on `recipe_lines`: `recipe_lines_one_parent` and `recipe_lines_one_component` (`num_nonnulls(...) = 1`), `recipe_lines_quantity_positive` (`quantity > 0`), `recipe_lines_no_self_reference` (`parent_preparation_id <> component_preparation_id`). Only the **direct** self-reference is blocked by the schema; transitive cycles are caught by the model-level guard ("Recipe engine" below).
 
 **Model rules**
 
@@ -139,7 +139,7 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
 
     Shape rules (one parent, one component, quantity, self-reference) are left to the CHECKs. Cost: 2 queries per save, 3 with a unit, all re-queried fresh rather than read from cached relations. Same limits as `Unit`: not run on bulk/query-builder writes, not re-checked if an owner changes later.
 
-- `App\Contracts\HasRecipe` (one method, `recipeLines()`), implemented by `Preparation` and `Product`, so the step 4 engine can be written once against recipe lines rather than per parent type.
+- `App\Contracts\HasRecipe` (one method, `recipeLines()`), implemented by `Preparation` and `Product`, so the engine (`RecipeFlattener`) is written once against recipe lines rather than per parent type.
 - `RecipeLine::parent()` and `component()` return whichever side is set; they are not relations, so eager-load `parentPreparation`/`product` and `ingredient`/`componentPreparation` before calling them in a loop.
 - `Preparation::usedInLines()` lists the lines that use a preparation as a component.
 
@@ -148,6 +148,34 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
 - The component and unit FKs on `recipe_lines` (`ingredient_id`, `component_preparation_id`, `unit_id`) are `NO ACTION`: deleting an ingredient, preparation or unit that some line uses fails at the database level.
 - Account deletion: `User` has a `deleting` hook that first deletes, in one query, every recipe line whose parent belongs to that user; the DB cascade then removes their preparations, products, units and private ingredients. `User::delete()` wraps the whole thing in a transaction.
 - Consequence: users must be deleted **one at a time through the model** (`$user->delete()`). A bulk `User::query()->delete()` skips the hook and fails on the foreign keys.
+
+### Recipe engine (Phase 2 steps 3-4, in progress)
+
+Plain classes in `App\Recipes`, no controllers or pages. Scaling rule: [`decisions.md`](decisions.md) entry 10; vocabulary: [`domain-model.md`](domain-model.md) "Unrolling a recipe".
+
+**Cycle guard** — `RecipeCycleGuard::wouldCreateCycle($parentId, $componentId)` answers whether making preparation C a component of preparation P would make P contain itself, directly or transitively.
+
+- One query loads every preparation-in-preparation link of P's owner; the walk from C then runs in PHP with a visited set, so a cycle already present in the data can't loop it.
+- It is called from the `RecipeLine` `saving()` hook, next to the ownership checks, and throws `RecipeCycleException` (a `LogicException`) naming both preparations. It runs only for preparation-in-preparation lines, and on update only when the parent or component link changed (quantity, position and unit edits skip it and its query).
+- Known limits: two simultaneous saves (A into B, B into A) can both pass, since no lock is taken; bulk/query-builder writes skip model events, so they skip the guard.
+
+**Flattener** — `RecipeFlattener::flatten(HasRecipe $recipe)` returns `ingredient id => grams` (numeric strings, 4 decimals, sorted by id) for a product or preparation.
+
+- Loading goes one tree level at a time (one query per level, units eager-loaded), so query count follows the tree's depth, not its width. All maths then happens in memory.
+- A preparation used as a component contributes its ingredients scaled by `line grams / preparation weight`, where a recipe's weight is the sum of its lines in grams (entry 10). A zero-weight preparation contributes nothing.
+- Arithmetic is BCMath on strings only: scale 8 for intermediate values (multiply before dividing, so one truncation), then half-up to 4 decimals at the end. No floats. Non-numeric database values throw `UnexpectedValueException` rather than being coerced.
+- A preparation computed once is reused (diamond-shaped trees are fine). If the data contains a cycle anyway, it throws `RecipeCycleException` instead of looping.
+- It keeps per-call state in its properties: always use a fresh instance, never a singleton. It ignores users, visibility and Policies: callers authorize.
+- Still to do in step 4: nutrition aggregation and allergen/trace union on top of this output.
+
+### Dataset export (public CC-BY data)
+
+`App\Console\Commands\ExportIngredientsCommand` (`ingredients:export {--directory=}`) implements the dump from [`decisions.md`](decisions.md) entry 4. It writes `sharlotte-ingredients.csv` and `sharlotte-ingredients.json` to `storage/app/public-dataset/` (or `--directory`).
+
+- Only ingredients with `owner_id` null are exported: that `WHERE` is the single thing keeping private user data out of the dataset. Rows are ordered by slug, so unchanged data yields identical files; category and allergens are eager-loaded.
+- The CSV uses the import's header and labels (`ImportIngredientsCommand::REQUIRED_COLUMNS`, `IngredientStorage::frenchLabel()`), so it re-imports unchanged. Values are not escaped against spreadsheet formula injection, which would break that round trip. The JSON wraps the same rows with `generated_at`, `license` and `count`.
+- Both files are written to temporary names and renamed into place only once both are complete, so a failure never leaves a half-written file. Failures return a non-zero exit code.
+- Scheduled weekly in `routes/console.php` (`withoutOverlapping`); this needs the Laravel scheduler running in production. Nothing serves the files yet: hosting is still an open decision in `decisions.md`.
 
 ### Data storage
 
