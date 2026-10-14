@@ -2,6 +2,17 @@
 
 > Maintained by the Documentation agent (`/doc`) after each merge to `main`.
 
+## 2026-10-14
+
+### New
+
+- **The ingredient dataset can now be exported.** Sharlotte can produce a spreadsheet-friendly file (CSV) and a data file (JSON) containing all the public ingredients, free to reuse with attribution. Only the shared ingredients are included, never anyone's private ones. The files are refreshed every week. They aren't available to download from the site yet.
+- **Sharlotte can now work out what a recipe is made of, in grams.** A tart that uses your pastry cream, which itself uses butter and sugar, is reduced to the exact grams of butter, sugar and so on. There's no screen showing this yet. Nutrition totals and allergens will build on it next.
+
+### Improvements
+
+- **A preparation can't be made to contain itself.** If preparation A uses B, Sharlotte now refuses to let B use A, even through a longer chain, and tells you which preparations are involved. That would otherwise make a recipe impossible to calculate.
+
 ## 2026-10-01
 
 ### New

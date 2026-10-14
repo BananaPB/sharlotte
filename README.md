@@ -6,7 +6,7 @@ It comes from a restaurant professional's own database of about 2,000 raw ingred
 
 ## Status
 
-Early development: the ingredient database is in place and the calculation engine is being built. See the "Current state" section of [`docs/roadmap.md`](docs/roadmap.md) for where things stand.
+Early development: the ingredient database and recipe structure are in place, and the calculation engine is half built (recipes flatten to grams; nutrition and allergens are next). See the "Current state" section of [`docs/roadmap.md`](docs/roadmap.md) for where things stand.
 
 ## Run it locally
 
