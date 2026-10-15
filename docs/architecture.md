@@ -63,7 +63,7 @@ Open questions to revisit when Phase 4 actually starts (not urgent before then):
 
 ### Ingredients (Phase 1 — data layer only)
 
-The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2 ([`decisions.md`](decisions.md) entries 8 and 10): formats & units and the preparation/product/recipe-line tables are built (below); the cycle guard and the recipe flattener are built too ("Recipe engine" below); nutrition and allergen aggregation are not yet. This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
+The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` tree described in [`domain-model.md`](domain-model.md): a raw, bought-as-is item carrying its own nutrition (per 100g) and allergens directly, with no recipe of its own. `Product` and `Preparation` (the recursive composition and calculation engine on top of this) are Phase 2 ([`decisions.md`](decisions.md) entries 8 and 10): formats & units and the preparation/product/recipe-line tables are built (below); the cycle guard, the recipe flattener, nutrition and allergen aggregation are built too ("Recipe engine" below). This phase ships no controllers, Policies, FormRequests, or Inertia pages — it is deliberately data-layer only ([`roadmap.md`](roadmap.md) defers the public API to Phase 3).
 
 **Schema**
 
@@ -116,11 +116,12 @@ A unit lets a quantity be entered as "2 tranches" instead of grams: it gives one
 
 ### Preparations, products & recipe lines (Phase 2 step 2 — data layer only)
 
-The composition layer of the `Product > Preparation > Ingredient` tree ([`domain-model.md`](domain-model.md), [`decisions.md`](decisions.md) entry 8). Tables and model rules only: no controllers, Policies, FormRequests or pages, and no nutrition/allergen calculation yet (step 4, second half).
+The composition layer of the `Product > Preparation > Ingredient` tree ([`domain-model.md`](domain-model.md), [`decisions.md`](decisions.md) entry 8). Tables and model rules only: no controllers, Policies, FormRequests or pages, and the calculation lives in the "Recipe engine" below.
 
 **Schema**
 
-- `preparations` and `products` — same shape today: `name`, `owner_id` (`NOT NULL`, `cascadeOnDelete`, indexed), timestamps. Always owned, no public tier; `owner_id` is not fillable (set via `owner()->associate($user)`). No yield column: a recipe weighs the sum of its lines in grams, computed rather than stored ([`decisions.md`](decisions.md) entry 10 and its Deferred line on cooking loss). Kept as two tables so products can gain their own fields later (entry 8).
+- `preparations` and `products` — `name`, `owner_id` (`NOT NULL`, `cascadeOnDelete`, indexed), timestamps. Always owned, no public tier; `owner_id` is not fillable (set via `owner()->associate($user)`). No yield column: a recipe weighs the sum of its lines in grams, computed rather than stored ([`decisions.md`](decisions.md) entry 10 and its Deferred line on cooking loss). Kept as two tables so products can gain their own fields (entry 8).
+- `products.servings` — `smallint NOT NULL default 1`, with `CHECK (servings >= 1)` (`products_servings_positive`). A display-only divisor for per-serving values: it never changes composition and is never a component quantity. Preparations have no servings. The database caps it only at the smallint maximum, so the future form request must set a lower bound. Per-serving values are not computed yet. See [`decisions.md`](decisions.md) entry 14.
 - `recipe_lines` — one table for both kinds of recipe:
     - parent: `parent_preparation_id` or `product_id` (`cascadeOnDelete`: deleting a recipe deletes its lines);
     - component: `ingredient_id` or `component_preparation_id`. There is **no product component column**, so a product can never be used inside a recipe — enforced by the schema itself;
@@ -149,7 +150,7 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
 - Account deletion: `User` has a `deleting` hook that first deletes, in one query, every recipe line whose parent belongs to that user; the DB cascade then removes their preparations, products, units and private ingredients. `User::delete()` wraps the whole thing in a transaction.
 - Consequence: users must be deleted **one at a time through the model** (`$user->delete()`). A bulk `User::query()->delete()` skips the hook and fails on the foreign keys.
 
-### Recipe engine (Phase 2 steps 3-4, in progress)
+### Recipe engine (Phase 2 steps 3-4)
 
 Plain classes in `App\Recipes`, no controllers or pages. Scaling rule: [`decisions.md`](decisions.md) entry 10; vocabulary: [`domain-model.md`](domain-model.md) "Unrolling a recipe".
 
@@ -166,7 +167,19 @@ Plain classes in `App\Recipes`, no controllers or pages. Scaling rule: [`decisio
 - Arithmetic is BCMath on strings only: scale 8 for intermediate values (multiply before dividing, so one truncation), then half-up to 4 decimals at the end. No floats. Non-numeric database values throw `UnexpectedValueException` rather than being coerced.
 - A preparation computed once is reused (diamond-shaped trees are fine). If the data contains a cycle anyway, it throws `RecipeCycleException` instead of looping.
 - It keeps per-call state in its properties: always use a fresh instance, never a singleton. It ignores users, visibility and Policies: callers authorize.
-- Still to do in step 4: nutrition aggregation and allergen/trace union on top of this output.
+**Nutrition** — `RecipeNutrition` returns a `NutritionFacts` for a whole recipe (`totals`) and per 100 g (`per100g`), from the flattener's grams per ingredient.
+
+- Nine values: calories, fats, saturates, carbohydrates, sugars, fibers, proteins, salt, water. BCMath on strings, scale 8 throughout, then a single half-up rounding to 2 decimals at the end. Per-100 g is computed from the unrounded totals, not from rounded ones.
+- `fibers` and `water` are `null` as soon as any used ingredient lacks them, for the whole recipe ([`decisions.md`](decisions.md) entry 9).
+- An empty or zero-weight recipe has totals of 0.00 (the unknown rule for `fibers`/`water` still applies) and a `null` `per100g`.
+- One query loads the used ingredients. An unknown ingredient id throws a `RuntimeException` naming it, rather than being skipped.
+
+**Allergens** — `RecipeAllergens` returns an `AllergenReport`: sorted, deduplicated allergen codes the recipe contains, and trace codes. A trace already listed as a contained allergen is removed from the traces.
+
+- Presence only, weight plays no part. Codes are sorted in PHP (byte order), so the order never depends on database collation.
+- At most three queries: an existence check on the ingredients, the allergens, the traces. An unknown ingredient id throws a `RuntimeException`.
+
+Both read the flattener's output, so like it they ignore users, visibility and Policies. Per-serving values (dividing by `products.servings`) and a single entry point combining flatten, nutrition and allergens are still to do.
 
 ### Dataset export (public CC-BY data)
 
