@@ -35,6 +35,7 @@ class ProductFactory extends Factory
 
         return [
             'name' => $name,
+            'servings' => 1,
             // Resolved by Eloquent into a newly-created user's id (see IngredientFactory).
             'owner_id' => UserFactory::new(),
         ];

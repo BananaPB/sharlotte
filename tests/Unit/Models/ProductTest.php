@@ -80,3 +80,33 @@ test('has only its own recipe lines', function () {
 
     expect($product->recipeLines->pluck('id')->all())->toBe([$first->id, $second->id]);
 });
+
+// --- servings --------------------------------------------------------------------------
+
+test('reads back a servings count of 1 for a product created without one', function () {
+    $product = new Product(['name' => 'Tarte']);
+    $product->owner()->associate(User::factory()->create());
+    $product->save();
+
+    expect($product->fresh()->servings)->toBe(1);
+});
+
+test('reads back the servings count it was created with as an integer', function () {
+    $product = ProductFactory::new()->create(['servings' => 4]);
+
+    expect($product->fresh()->servings)->toBe(4);
+});
+
+test('reads back the servings count it was updated to as an integer', function () {
+    $product = ProductFactory::new()->create();
+
+    $product->update(['servings' => 4]);
+
+    expect($product->fresh()->servings)->toBe(4);
+});
+
+test('casts a servings count given as a string to an integer', function () {
+    $product = new Product(['name' => 'Tarte', 'servings' => '6']);
+
+    expect($product->servings)->toBe(6);
+});

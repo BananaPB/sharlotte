@@ -19,15 +19,25 @@ function recipeLinesMigrationForProductsRollback(): object
     return require database_path('migrations/2026_10_01_210004_create_recipe_lines_table.php');
 }
 
+// The servings column is added to products later, so it is rolled back first and
+// re-applied right after the table, as `migrate:rollback` would.
+function servingsMigrationForProductsRollback(): object
+{
+    return require database_path('migrations/2026_10_14_090001_add_servings_to_products_table.php');
+}
+
 test('can be rolled back and re-applied, along with recipe lines', function () {
     $migration = createProductsTableMigration();
     $recipeLines = recipeLinesMigrationForProductsRollback();
+    $servings = servingsMigrationForProductsRollback();
 
     $recipeLines->down();
+    $servings->down();
     $migration->down();
     expect(Schema::hasTable('products'))->toBeFalse();
 
     $migration->up();
+    $servings->up();
     $recipeLines->up();
     expect(Schema::hasTable('products'))->toBeTrue();
 
