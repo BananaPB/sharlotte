@@ -15,7 +15,7 @@ You are orchestrating the start of the multi-agent workflow for a new feature: *
     - unattended run (`NIGHTSHIFT=1`): stop now with status `escalated`, reason "brief incomplete: <missing fields>".
 3. Verify the working tree is clean (`git status`). If it isn't, stop and ask the user how to proceed — never stash/commit anything without confirmation. (In an unattended run the runner provides a fresh worktree, so a dirty tree means something is wrong: escalate.)
 4. Determine a short, explicit branch name: `feature/<issue-number>-<short-name>` when there is an issue, `feature/<short-name>` otherwise. Create it from an up-to-date `main`: `git fetch origin && git checkout -b <branch> origin/main`.
-5. Invoke the **dev** sub-agent (see `.claude/agents/dev.md`) with the **full brief verbatim** and the branch name, explicitly reminding it to respect `CLAUDE.md` and to work test-first at the brief's seams.
+5. Invoke the **dev** sub-agent (see `.claude/agents/dev.md`) with the **full brief verbatim** and the branch name, explicitly reminding it to respect `CLAUDE.md` and to work test-first at the brief's seams. Run it in the foreground and wait for its report before continuing.
 6. Once the dev agent is done, display a brief summary for the human:
     - List of created/modified files (`git status --short`).
     - The tests written per seam, and non-trivial technical decisions made by the dev agent.

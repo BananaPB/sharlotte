@@ -7,7 +7,7 @@ Invoke the **qa** sub-agent (see `.claude/agents/qa.md`) on the active branch, g
 ## Steps
 
 1. Verify we're actually on a feature branch (not `main`).
-2. Invoke the `qa` sub-agent with the brief and the diff between `main` and the current branch as its scope.
+2. Invoke the `qa` sub-agent with the brief and the diff between `main` and the current branch as its scope. Run it in the foreground and wait for its report before continuing.
 3. Display the full report: attack list, tests added, Pest/Vitest results, and any failure linked to a code bug.
 
 ## Then
