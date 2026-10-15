@@ -25,6 +25,7 @@ Real decisions, deliberately not made yet, each with the event that should bring
 - **Translate ingredient/category data and add multi-locale support** — when an actual non-French-speaking user or use case appears (e.g. publishing the CC-BY dataset in English). _(deferred 2026-09-22)_
 - **Seed common public units (e.g. "1 tranche de jambon = 40 g")** — public units (`owner_id` null) are supported by the schema per entry 8, but none are seeded yet. Seed them when Phase 3's unit picker exists and users would otherwise each recreate the same common units. _(deferred 2026-10-01)_
 - **Cooking loss (yield) on preparations and products** — ignored for now (entry 10). Add it when the project owner has measured standard loss ratios per kind of cooking to suggest to users, so nobody has to reweigh a finished recipe. _(deferred 2026-10-01)_
+- **Typed exception for a missing ingredient in the engine** — `RecipeNutrition` and `RecipeAllergens` both throw a plain `RuntimeException` naming the id when an ingredient does not exist. That is reachable only through bad data, since foreign keys protect ingredients in use (entry 11). Add a dedicated exception class when the first controller or API endpoint calls the engine and has to handle that case. _(deferred 2026-10-15)_
 - **Serialize concurrent recipe-line writes per owner (cycle-guard race)** — the cycle guard checks, then saves, so two simultaneous saves (A into B and B into A) can both pass and create a cycle; fixing it means a transaction with a lock on the owner's row, which the `saving` hook has no room for. Not before Phase 3 lets one user edit recipes from several tabs or clients at once, or the engine's loop backstop ever reports a real cycle. _(deferred 2026-10-12)_
 - **Move the forge to Forgejo, or mirror to it** — not unless the private SaaS repo's CI minutes start costing money or a B2B customer requires EU-hosted code. Everything in the pipeline (claude-code-action, `gh`, Dependabot, the Claude GitHub app) is GitHub-specific, and self-hosting the forge means hosting the branch protection the whole setup relies on. _(deferred 2026-10-11)_
 - **Graphify (code knowledge graph for agents)** — when nightshift transcripts show `dev` spending more turns exploring than writing, or the SaaS repo needs to understand this one across repos. At ~13k lines with Laravel Boost already connected, grep is enough. _(deferred 2026-10-11)_
@@ -34,6 +35,18 @@ Real decisions, deliberately not made yet, each with the event that should bring
 ---
 
 _Entries 1–4 were recorded retroactively on 2026-09-21 from [`vision.md`](vision.md), [`roadmap.md`](roadmap.md), and [`architecture.md`](architecture.md). They describe choices already made at repo initialization, not new ones._
+
+## 14. Servings live on products only, as a display divisor — never a component quantity
+
+**2026-10-15 · Accepted · applies to Phase 2 (`products.servings`, merged in #47)**
+
+Per-serving nutrition needs a portion count. Two questions came up: should preparations have one too, and could "1 serving of a preparation" be used as a quantity inside another recipe (the tart shell makes 6 servings, the strawberry tart uses 1)? The project owner's instinct, which this entry follows, was that serving counts on preparations would invite bad practice, while leaving them off pushes users to think "product first" and to keep product recipes and preparation recipes apart. So: `products.servings` is a small integer, NOT NULL, default 1, with a CHECK `servings >= 1`. It is display-only: it divides the totals of a product for display and never changes composition. A recipe's composition stays in grams (entry 10), and "1 serving of tart shell" is expressed by what already exists for that: a unit on the preparation (entry 8, units extended to preparations), a fixed number of grams chosen by the user.
+
+**Rejected**: `servings` on preparations (a second, competing way to say "1 tart shell"; and an implicit conversion, weight ÷ servings, that would silently change when the preparation's recipe is edited, against the domain rule that conversions are explicit; adding the column later is a non-destructive migration, removing it once used is not); servings as a component quantity (the same implicit conversion, plus the engine would need a second scaling path next to grams).
+
+**Costs**: a user who wants "1 serving of my pastry cream" in a recipe has to create a unit for it, one step more than a serving count would take. A preparation cannot show per-serving nutrition, only per 100 g and totals. The database sets no upper bound beyond the size of a small integer (32,767); Phase 3's form request must cap it (the PR description for #47 wrongly said 65,535). Products that existed before the column got 1.
+
+**Revisit when**: users keep creating units such as "1 batch = N g" for preparations by hand, or a real need appears for per-serving values on a preparation.
 
 ## 13. Nightshift runs on a GitHub-hosted runner, started by hand for now (supersedes the runner location in entry 12)
 
