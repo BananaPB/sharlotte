@@ -167,7 +167,7 @@ Plain classes in `App\Recipes`, no controllers or pages. Scaling rule: [`decisio
 - Arithmetic is BCMath on strings only: scale 8 for intermediate values (multiply before dividing, so one truncation), then half-up to 4 decimals at the end. No floats. Non-numeric database values throw `UnexpectedValueException` rather than being coerced.
 - A preparation computed once is reused (diamond-shaped trees are fine). If the data contains a cycle anyway, it throws `RecipeCycleException` instead of looping.
 - It keeps per-call state in its properties: always use a fresh instance, never a singleton. It ignores users, visibility and Policies: callers authorize.
-**Nutrition** — `RecipeNutrition` returns a `NutritionFacts` for a whole recipe (`totals`) and per 100 g (`per100g`), from the flattener's grams per ingredient.
+  **Nutrition** — `RecipeNutrition` returns a `NutritionFacts` for a whole recipe (`totals`) and per 100 g (`per100g`), from the flattener's grams per ingredient.
 
 - Nine values: calories, fats, saturates, carbohydrates, sugars, fibers, proteins, salt, water. BCMath on strings, scale 8 throughout, then a single half-up rounding to 2 decimals at the end. Per-100 g is computed from the unrounded totals, not from rounded ones.
 - `fibers` and `water` are `null` as soon as any used ingredient lacks them, for the whole recipe ([`decisions.md`](decisions.md) entry 9).
