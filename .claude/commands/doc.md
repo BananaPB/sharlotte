@@ -7,7 +7,7 @@ Invoke the **doc** sub-agent (see `.claude/agents/doc.md`).
 ## Steps
 
 1. Verify we're on an up-to-date `main`: `git checkout main && git pull`.
-2. Invoke the `doc` sub-agent, giving it the range of commits to document (from the last `docs/changelog.md` update, visible in its git history, up to `HEAD`).
+2. Invoke the `doc` sub-agent, giving it the range of commits to document (from the last `docs/changelog.md` update, visible in its git history, up to `HEAD`). Run it in the foreground and wait for its report before continuing.
 3. Display a diff of the proposed changes to `docs/architecture.md`, `docs/changelog.md`, the "Current state" section of `docs/roadmap.md` and `README.md`.
 4. Then, depending on how this command was started:
     - **Interactive session**: only commit on explicit user confirmation (then a `docs/post-pr<N>-update` branch and a PR, like every other change).

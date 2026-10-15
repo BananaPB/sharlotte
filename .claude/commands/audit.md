@@ -7,7 +7,7 @@ Invoke the **quality** sub-agent (see `.claude/agents/quality.md`) and the **spe
 ## Steps
 
 1. Verify we're actually on a feature branch (not `main`): `git branch --show-current`.
-2. Invoke both sub-agents at once, with the diff between `main` and the current branch as their scope. Give the `spec` agent the **brief verbatim** (the one `/feature` received). If this audit was started by hand and there is no brief in the session, ask the user for it or for the issue number; without one, run `quality` only and say the spec check was skipped.
+2. Invoke both sub-agents at once, with the diff between `main` and the current branch as their scope. Launch both in the same step, in the foreground, and wait for both reports before continuing. Give the `spec` agent the **brief verbatim** (the one `/feature` received). If this audit was started by hand and there is no brief in the session, ask the user for it or for the issue number; without one, run `quality` only and say the spec check was skipped.
 3. Display both full reports to the user, without summarizing or truncating them — security issues must be fully visible.
 4. If **critical** (security) issues are detected, highlight them at the top of the message, before everything else.
 5. End with a clear recommendation: "Ready for `/test`" or "Fixes needed before continuing — see above".
