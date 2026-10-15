@@ -53,11 +53,14 @@ class RecipeAllergens
             ->join('allergens', 'allergens.id', '=', $pivot.'.allergen_id')
             ->whereIn($pivot.'.ingredient_id', $ingredientIds)
             ->distinct()
-            ->orderBy('allergens.code')
             ->pluck('allergens.code')
             ->map(fn ($code): string => (string) $code)
             ->all();
 
-        return array_values($codes);
+        // Sorted in PHP (byte order), not with ORDER BY: the database's collation (e.g. en_US.UTF-8
+        // sorts "alpha, beta, Zeta") could make the order differ between local, CI and production.
+        sort($codes, SORT_STRING);
+
+        return $codes;
     }
 }
