@@ -42,6 +42,9 @@ class RecipeNutrition
 
     public function compute(HasRecipe $recipe, ?int $servings = null): NutritionFacts
     {
+        // Fail fast: no query should run for servings that fromGrams() would refuse anyway.
+        $this->assertValidServings($servings);
+
         // A fresh flattener each time: it keeps per-call state and must never be shared.
         return $this->fromGrams((new RecipeFlattener)->flatten($recipe), $servings);
     }
@@ -52,9 +55,7 @@ class RecipeNutrition
      */
     public function fromGrams(array $gramsByIngredientId, ?int $servings = null): NutritionFacts
     {
-        if ($servings !== null && $servings < 1) {
-            throw new InvalidArgumentException('Servings must be at least 1, got '.$servings.'.');
-        }
+        $this->assertValidServings($servings);
 
         $ingredients = $this->loadIngredients(array_keys($gramsByIngredientId));
 
@@ -121,6 +122,13 @@ class RecipeNutrition
         );
     }
 
+    private function assertValidServings(?int $servings): void
+    {
+        if ($servings !== null && $servings < 1) {
+            throw new InvalidArgumentException('Servings must be at least 1, got '.$servings.'.');
+        }
+    }
+
     /**
      * @param  list<int>  $ids
      * @return array<int, Ingredient>
@@ -147,7 +155,8 @@ class RecipeNutrition
     }
 
     /**
-     * Half-up to 4 decimals, for the weight of one serving.
+     * Half-up to 4 decimals, for the weight of one serving. Same trick as HALF_UP: bcadd truncates
+     * (never rounds) to 4 decimals, so adding half of the last decimal (0.00005) first makes it round half-up.
      *
      * @param  numeric-string  $value  scale 8
      * @return numeric-string

@@ -6,7 +6,10 @@ use App\Models\Ingredient;
 use App\Recipes\NutritionFacts;
 use App\Recipes\RecipeNutrition;
 use Database\Factories\IngredientFactory;
+use Database\Factories\PreparationFactory;
+use Database\Factories\RecipeLineFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
@@ -135,3 +138,22 @@ test('refuses fewer than one serving, naming the value', function (int $servings
     expect(fn () => (new RecipeNutrition)->fromGrams([$a->id => '100.0000'], $servings))
         ->toThrow(InvalidArgumentException::class, (string) $servings);
 })->with([0, -3]);
+
+test('refuses invalid servings before running any query', function (int $servings) {
+    // A recipe that would otherwise be flattened (queries), so a late check would show up.
+    $preparation = PreparationFactory::new()->create();
+    RecipeLineFactory::new()->forPreparation($preparation)->withIngredient(perServingIngredient())->create(['quantity' => '100']);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    try {
+        expect(fn () => (new RecipeNutrition)->compute($preparation, $servings))
+            ->toThrow(InvalidArgumentException::class, (string) $servings);
+        $queries = count(DB::getQueryLog());
+    } finally {
+        DB::disableQueryLog();
+    }
+
+    expect($queries)->toBe(0);
+})->with([0, -1]);
