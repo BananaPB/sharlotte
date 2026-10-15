@@ -75,6 +75,8 @@ The `Ingredient` model is the leaf of the `Product > Preparation > Ingredient` t
 
     The model casts all nine to `decimal:2` (returned as strings, not floats) so nutrition arithmetic in Phase 2 stays exact, per [`decisions.md`](decisions.md) entry 5. Calories are stored unrounded; rounding belongs to display only.
 
+- All nine nutrition columns also carry a named `CHECK (<column> >= 0)`, `ingredients_<column>_not_negative` (e.g. `ingredients_calories_not_negative`). `NULL` is still allowed on `fibers` and `water`. There are no upper bounds in the database: the importer keeps its own range checks.
+
 - `to_review` — boolean, default `false`, indexed. A manual data-quality flag the project owner sets on ingredients to come back to (implausible values, macros that don't add up, naming inconsistencies). It is not touched by the import, carries no workflow, and has no timestamp of its own (`updated_at` suffices).
 - Allergens are modeled as **two** separate `belongsToMany` pivots — `ingredient_allergen` (definitely contains) and `ingredient_allergen_trace` (may contain traces of), exposed as `Ingredient::allergens()` / `allergenTraces()` — rather than one pivot with a `type` column, for query simplicity (each relation is a plain join, no extra `WHERE` on a type discriminator).
 
@@ -121,7 +123,7 @@ The composition layer of the `Product > Preparation > Ingredient` tree ([`domain
 **Schema**
 
 - `preparations` and `products` — `name`, `owner_id` (`NOT NULL`, `cascadeOnDelete`, indexed), timestamps. Always owned, no public tier; `owner_id` is not fillable (set via `owner()->associate($user)`). No yield column: a recipe weighs the sum of its lines in grams, computed rather than stored ([`decisions.md`](decisions.md) entry 10 and its Deferred line on cooking loss). Kept as two tables so products can gain their own fields (entry 8).
-- `products.servings` — `smallint NOT NULL default 1`, with `CHECK (servings >= 1)` (`products_servings_positive`). A display-only divisor for per-serving values: it never changes composition and is never a component quantity. Preparations have no servings. The database caps it only at the smallint maximum, so the future form request must set a lower bound. Per-serving values are not computed yet. See [`decisions.md`](decisions.md) entry 14.
+- `products.servings` — `smallint NOT NULL default 1`, with `CHECK (servings >= 1)` (`products_servings_positive`). A display-only divisor for per-serving values: it never changes composition and is never a component quantity. Preparations have no servings. The database caps it only at the smallint maximum, so the future form request must set a lower bound. It feeds the per-serving values of the recipe engine. See [`decisions.md`](decisions.md) entry 14.
 - `recipe_lines` — one table for both kinds of recipe:
     - parent: `parent_preparation_id` or `product_id` (`cascadeOnDelete`: deleting a recipe deletes its lines);
     - component: `ingredient_id` or `component_preparation_id`. There is **no product component column**, so a product can never be used inside a recipe — enforced by the schema itself;
@@ -180,7 +182,18 @@ Plain classes in `App\Recipes`, no controllers or pages. Scaling rule: [`decisio
 - Presence only, weight plays no part. Codes are sorted in PHP (byte order), so the order never depends on database collation.
 - At most three queries: an existence check on the ingredients, the allergens, the traces. An unknown ingredient id throws a `RuntimeException`.
 
-Both read the flattener's output, so like it they ignore users, visibility and Policies. Per-serving values (dividing by `products.servings`) and a single entry point combining flatten, nutrition and allergens are still to do.
+**Per-serving values** ([`decisions.md`](decisions.md) entry 14) — `RecipeNutrition::compute(HasRecipe, ?int $servings = null)` and `fromGrams(array, ?int $servings = null)` take an optional serving count. `NutritionFacts` has trailing optional fields `servings`, `perServing` and `servingWeightGrams`, all `null` when no count is given (always the case for preparations).
+
+- `perServing` holds the same nine values: each is the unrounded total divided by the servings, rounded half-up to 2 decimals once. The unknown rule for `fibers`/`water` applies unchanged.
+- `servingWeightGrams` is the recipe weight divided by the servings, half-up to 4 decimals.
+- Servings below 1 throw `InvalidArgumentException` before the tree is flattened.
+- An empty or zero-weight recipe with servings has `perServing` at `0.00` for every value (unknown rule still applies), `servingWeightGrams` at `0.0000`, and `per100g` still `null`.
+
+**Combined report** — `RecipeReporter::compute(HasRecipe): RecipeReport` is the single entry point. It flattens once, hands the grams to `RecipeNutrition::fromGrams` and the ingredient ids to `RecipeAllergens::fromIngredientIds`, so it runs fewer queries than calling the two `compute()` methods separately, with identical results.
+
+- `RecipeReport` carries `weightGrams`, `nutrition` (`NutritionFacts`), `allergens` (`AllergenReport`) and `servings` (the product's `servings`, `null` for a preparation, which is also what keeps its per-serving values `null`).
+
+All of the engine reads the flattener's output, so like it, it ignores users, visibility and Policies. Phase 2 is complete; callers (API, pages) arrive in Phase 3.
 
 ### Dataset export (public CC-BY data)
 
