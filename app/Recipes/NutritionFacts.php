@@ -17,10 +17,15 @@ final readonly class NutritionFacts
      * @param  numeric-string  $weightGrams
      * @param  array<string, numeric-string|null>  $totals
      * @param  array<string, numeric-string|null>  $per100g
+     * @param  array<string, numeric-string|null>|null  $perServing  same keys, null when no servings count was given
+     * @param  numeric-string|null  $servingWeightGrams  4 decimals, null when no servings count was given
      */
     public function __construct(
         public string $weightGrams,
         public array $totals,
         public array $per100g,
+        public ?int $servings = null,
+        public ?array $perServing = null,
+        public ?string $servingWeightGrams = null,
     ) {}
 }

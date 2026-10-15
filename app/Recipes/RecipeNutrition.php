@@ -6,6 +6,7 @@ namespace App\Recipes;
 
 use App\Contracts\HasRecipe;
 use App\Models\Ingredient;
+use InvalidArgumentException;
 use RuntimeException;
 use UnexpectedValueException;
 
@@ -39,17 +40,23 @@ class RecipeNutrition
     /** Half of the last result decimal, added before truncating to round half-up. */
     private const HALF_UP = '0.005';
 
-    public function compute(HasRecipe $recipe): NutritionFacts
+    public function compute(HasRecipe $recipe, ?int $servings = null): NutritionFacts
     {
+        // Fail fast: no query should run for servings that fromGrams() would refuse anyway.
+        $this->assertValidServings($servings);
+
         // A fresh flattener each time: it keeps per-call state and must never be shared.
-        return $this->fromGrams((new RecipeFlattener)->flatten($recipe));
+        return $this->fromGrams((new RecipeFlattener)->flatten($recipe), $servings);
     }
 
     /**
      * @param  array<int, numeric-string>  $gramsByIngredientId  ingredient id => grams, as returned by RecipeFlattener
+     * @param  int|null  $servings  when given (>= 1), per-serving values are added to the result
      */
-    public function fromGrams(array $gramsByIngredientId): NutritionFacts
+    public function fromGrams(array $gramsByIngredientId, ?int $servings = null): NutritionFacts
     {
+        $this->assertValidServings($servings);
+
         $ingredients = $this->loadIngredients(array_keys($gramsByIngredientId));
 
         $weight = '0';
@@ -79,11 +86,13 @@ class RecipeNutrition
         $hasWeight = bccomp($weight, '0', self::WORKING_SCALE) > 0;
         $totals = [];
         $per100g = [];
+        $perServing = [];
 
         foreach (self::NUTRIENTS as $nutrient) {
             if (isset($unknown[$nutrient]) && in_array($nutrient, self::OPTIONAL_NUTRIENTS, true)) {
                 $totals[$nutrient] = null;
                 $per100g[$nutrient] = null;
+                $perServing[$nutrient] = null;
 
                 continue;
             }
@@ -94,6 +103,11 @@ class RecipeNutrition
             $per100g[$nutrient] = $hasWeight
                 ? $this->round(bcdiv(bcmul($sums[$nutrient], '100', self::WORKING_SCALE), $weight, self::WORKING_SCALE))
                 : null;
+
+            // Per serving: the unrounded sum divided by servings, rounded once (never from the rounded total).
+            if ($servings !== null) {
+                $perServing[$nutrient] = $this->round(bcdiv($sums[$nutrient], (string) $servings, self::WORKING_SCALE));
+            }
         }
 
         // bcadd truncates (it does not round) to 4 decimals: the weight is already the flattener's
@@ -102,7 +116,17 @@ class RecipeNutrition
             bcadd($weight, '0', 4),
             $totals,
             $per100g,
+            $servings,
+            $servings === null ? null : $perServing,
+            $servings === null ? null : $this->roundWeight(bcdiv($weight, (string) $servings, self::WORKING_SCALE)),
         );
+    }
+
+    private function assertValidServings(?int $servings): void
+    {
+        if ($servings !== null && $servings < 1) {
+            throw new InvalidArgumentException('Servings must be at least 1, got '.$servings.'.');
+        }
     }
 
     /**
@@ -128,6 +152,18 @@ class RecipeNutrition
         }
 
         return $found;
+    }
+
+    /**
+     * Half-up to 4 decimals, for the weight of one serving. Same trick as HALF_UP: bcadd truncates
+     * (never rounds) to 4 decimals, so adding half of the last decimal (0.00005) first makes it round half-up.
+     *
+     * @param  numeric-string  $value  scale 8
+     * @return numeric-string
+     */
+    private function roundWeight(string $value): string
+    {
+        return bcadd(bcadd($value, '0.00005', self::WORKING_SCALE), '0', 4);
     }
 
     /**
