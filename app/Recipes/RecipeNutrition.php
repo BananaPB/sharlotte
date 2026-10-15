@@ -7,6 +7,7 @@ namespace App\Recipes;
 use App\Contracts\HasRecipe;
 use App\Models\Ingredient;
 use RuntimeException;
+use UnexpectedValueException;
 
 /**
  * Turns a recipe into aggregated nutrition facts: totals for the whole recipe and values per
@@ -95,6 +96,8 @@ class RecipeNutrition
                 : null;
         }
 
+        // bcadd truncates (it does not round) to 4 decimals: the weight is already the flattener's
+        // 4-decimal sum, so this only normalises the format, and truncation is deliberate.
         return new NutritionFacts(
             bcadd($weight, '0', 4),
             $totals,
@@ -144,7 +147,7 @@ class RecipeNutrition
         $text = (string) $value;
 
         if (! is_numeric($text) || preg_match('/^-?\d+(\.\d+)?$/', $text) !== 1) {
-            throw new \UnexpectedValueException('Ingredient data contains a non-numeric nutrition value: "'.$text.'".');
+            throw new UnexpectedValueException('Ingredient data contains a non-numeric nutrition value: "'.$text.'".');
         }
 
         return $text;
