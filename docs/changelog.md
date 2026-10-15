@@ -2,6 +2,17 @@
 
 > Maintained by the Documentation agent (`/doc`) after each merge to `main`.
 
+## 2026-10-16
+
+### New
+
+- **Sharlotte can now work out nutrition per serving.** For a product, it divides the nutrition of the whole recipe by its number of servings, and also tells you how much one serving weighs. If an ingredient doesn't say how much fibre or water it contains, that figure is still reported as unknown. Preparations have no servings, so they get no per-serving figures. There's no screen showing this yet.
+- **Nutrition, allergens and weight can be obtained together.** For any recipe, Sharlotte now gives its total weight, its nutrition and its allergens in one go, and the results are the same as when asked separately. This completes the calculation part of Sharlotte. The screens to use it come next.
+
+### Improvements
+
+- **Ingredient nutrition values can no longer be negative.** Sharlotte now refuses a negative value for calories, fat, saturated fat, carbohydrates, sugars, fibre, protein, salt or water, so a typo can't skew a recipe's totals.
+
 ## 2026-10-15
 
 ### New
