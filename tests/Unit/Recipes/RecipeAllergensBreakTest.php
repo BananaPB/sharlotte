@@ -229,18 +229,29 @@ test('treats a private and a public ingredient with the same allergens identical
     expect($engine->fromIngredientIds([$private->id]))->toEqual($engine->fromIngredientIds([$public->id]));
 });
 
-test('ignores an unknown ingredient id instead of failing', function () {
+test('refuses an unknown ingredient id among known ones, naming it', function () {
     $known = qaAllergenIngredient(['milk']);
 
-    $report = (new RecipeAllergens)->fromIngredientIds([$known->id, 999999999]);
-
-    expect($report->allergens)->toBe(['milk'])->and($report->traces)->toBe([]);
+    expect(fn () => (new RecipeAllergens)->fromIngredientIds([$known->id, 999999999]))
+        ->toThrow(RuntimeException::class, 'Cannot compute allergens: no ingredient with id 999999999.');
 });
 
-test('returns two empty lists when only unknown ingredient ids are given', function () {
-    $report = (new RecipeAllergens)->fromIngredientIds([999999998, 999999999]);
+test('refuses a list made only of unknown ingredient ids, naming the first one', function () {
+    expect(fn () => (new RecipeAllergens)->fromIngredientIds([999999998, 999999999]))
+        ->toThrow(RuntimeException::class, 'no ingredient with id 999999998');
+});
 
-    expect($report->allergens)->toBe([])->and($report->traces)->toBe([]);
+test('returns no allergen at all when an id is unknown, even if the other ingredients carry some', function () {
+    $known = qaAllergenIngredient(['milk'], ['soy']);
+    $report = null;
+
+    try {
+        $report = (new RecipeAllergens)->fromIngredientIds([999999999, $known->id]);
+    } catch (RuntimeException) {
+        // expected
+    }
+
+    expect($report)->toBeNull();
 });
 
 test('gives the same result when the id list holds duplicates', function () {
@@ -251,7 +262,7 @@ test('gives the same result when the id list holds duplicates', function () {
     expect($report->allergens)->toBe(['milk'])->and($report->traces)->toBe(['soy']);
 });
 
-test('takes at most two queries for five hundred ingredient ids', function () {
+test('takes at most three queries for five hundred ingredient ids', function () {
     $ids = [];
     $milk = qaAllergenCode('milk');
     $soy = qaAllergenCode('soy');
@@ -267,7 +278,7 @@ test('takes at most two queries for five hundred ingredient ids', function () {
         $report = (new RecipeAllergens)->fromIngredientIds($ids);
     });
 
-    expect($queries)->toBeLessThanOrEqual(2)
+    expect($queries)->toBeLessThanOrEqual(3)
         ->and($report->allergens)->toBe(['milk'])
         ->and($report->traces)->toBe(['soy']);
 });

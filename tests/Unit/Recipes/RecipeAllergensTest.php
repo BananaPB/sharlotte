@@ -173,7 +173,7 @@ test('loads with the same number of queries whatever the number of ingredients',
     $narrow = $count(1);
     $wide = $count(12);
 
-    expect($narrow)->toBeLessThanOrEqual(2)->and($wide)->toBe($narrow);
+    expect($narrow)->toBeLessThanOrEqual(3)->and($wide)->toBe($narrow);
 });
 
 test('computes the allergens of a nested product, through a deep preparation', function () {

@@ -6,14 +6,16 @@ namespace App\Recipes;
 
 use App\Contracts\HasRecipe;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * Allergens and traces of a product or preparation: the union over every ingredient used in
  * its tree (docs/domain-model.md). Presence, not weight: an ingredient counts even if its
  * scaled grams round to 0.0000.
  *
- * Loading: two queries (allergens, traces) for all ingredient ids, whatever the tree's width.
- * It knows nothing about users, policies or HTTP.
+ * Loading: at most three queries (existence check, allergens, traces) for all ingredient ids,
+ * whatever the tree's width; none for an empty list. An unknown ingredient id throws a
+ * RuntimeException. It knows nothing about users, policies or HTTP.
  */
 class RecipeAllergens
 {
@@ -34,10 +36,29 @@ class RecipeAllergens
             return new AllergenReport([], []);
         }
 
+        $this->assertAllExist($ingredientIds);
+
         $allergens = $this->codes('ingredient_allergen', $ingredientIds);
         $traces = array_values(array_diff($this->codes('ingredient_allergen_trace', $ingredientIds), $allergens));
 
         return new AllergenReport($allergens, $traces);
+    }
+
+    /**
+     * One query. An unknown id must fail loudly: ignoring it would report "no allergen",
+     * which looks safe and is wrong (same rule as RecipeNutrition).
+     *
+     * @param  array<int, int>  $ingredientIds
+     */
+    private function assertAllExist(array $ingredientIds): void
+    {
+        $distinct = array_values(array_unique($ingredientIds));
+        $found = DB::table('ingredients')->whereIn('id', $distinct)->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $missing = array_values(array_diff($distinct, $found));
+
+        if ($missing !== []) {
+            throw new RuntimeException('Cannot compute allergens: no ingredient with id '.implode(', ', $missing).'.');
+        }
     }
 
     /**
