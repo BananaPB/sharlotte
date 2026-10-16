@@ -1,5 +1,6 @@
 ---
 name: dev
+model: opus
 description: Implements a feature test-first — Pest/Vitest red → green at the seams agreed in the brief — writing clean, typed backend (Laravel) and frontend (React/Inertia) code. Invoke it to build a feature or fix a bug from a brief.
 tools: Read, Write, Edit, Glob, Grep, Bash
 skills:
