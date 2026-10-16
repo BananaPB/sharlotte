@@ -144,7 +144,16 @@ jobs:
               "permission_denials (\((.permission_denials // []) | length)):",
               ((.permission_denials // [])[] | "  - \(.tool_name // "?"): \(.tool_input | if type == "object" then (.command // tostring) else tostring end | .[0:300])"),
               "result: \(.result // "?")",
-              "structured_output: \(.structured_output | tojson)"
+              "structured_output: \(.structured_output | tojson)",
+              # Usage: which models ran (sub-agents included) and what they cost. Any field may be
+              # missing or oddly typed: v prints "?" for null and caps any other value at 80 chars.
+              (def v: if . == null then "?" else tostring | .[0:80] end;
+                "duration_ms: \(.duration_ms | v)",
+                "total_cost_usd: \(.total_cost_usd | v)",
+                if (.modelUsage | type) == "object" and (.modelUsage | length) > 0 then
+                  (.modelUsage | to_entries[] | (.value | if type == "object" then . else {} end) as $m
+                    | "model \(.key | v): in \($m.inputTokens | v), out \($m.outputTokens | v), cache read \($m.cacheReadInputTokens | v), cache write \($m.cacheCreationInputTokens | v), cost \($m.costUSD | v)")
+                else "modelUsage: not present in this result" end)
             ' "$f" 2>&1 || echo "(could not read $(basename "$f") as JSON)"
             echo "::$stop::"
             echo "::endgroup::"
